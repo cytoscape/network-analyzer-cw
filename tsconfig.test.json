@@ -14,8 +14,9 @@
     "types": ["node"]
   },
   // Only the test files; tsc pulls in their (pure) imports automatically. This
-  // intentionally excludes the React hooks / web worker under src/model (e.g.
-  // useNetworkAnalyzerWorker.ts uses import.meta, which can't compile to CommonJS).
-  // "files": [],
-  // "include": ["src/model/**/*.test.ts"]
+  // intentionally excludes the React components/hooks and the web worker (e.g.
+  // src/hooks/useNetworkAnalyzerWorker.ts uses import.meta, which can't compile
+  // to CommonJS) — none of them are imported by the test files, so restricting
+  // "include" to the tests keeps them out of this compile entirely.
+  "include": ["src/model/**/*.test.ts"]
 }

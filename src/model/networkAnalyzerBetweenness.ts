@@ -4,96 +4,122 @@
  * stress, and edge betweenness centrality.
  * See networkAnalyzerTypes.ts for attribution.
  *
- * One implementation serves both modes: pass `anyNeighbors` (undirected) or
- * `outNeighbors` (directed) as `adjacency`. The directed Java analyzer's own
- * `computeNBandEB` overload traverses a combined in/out array but truncates it
- * to the out-edge portion before the forward BFS expansion and never uses the
- * in-edge portion afterward — i.e. it's algorithmically just an out-edge-only
- * Brandes pass, so no separate directed implementation is needed here.
+ * One implementation serves both modes: pass the any-direction CSR
+ * (undirected) or the out-direction CSR (directed) as `offsets`/`targets`.
+ * The directed Java analyzer's own `computeNBandEB` overload traverses a
+ * combined in/out array but truncates it to the out-edge portion before the
+ * forward BFS expansion and never uses the in-edge portion afterward — i.e.
+ * it's algorithmically just an out-edge-only Brandes pass, so no separate
+ * directed implementation is needed here.
  *
- * Edge betweenness is accumulated per logical edge (via `edgeKey`, not per
- * literal CyEdge/CX2 edge id) — parallel edges between the same node pair
- * collapse to one Brandes edge, matching Java's node-pair-hash approach. The
- * caller is responsible for writing that one value back to every literal edge
- * sharing the pair.
+ * Uses integer-indexed typed-array scratch buffers (reused across all
+ * `nodeCount` source iterations) instead of `Map`/`Set` — profiling showed
+ * the Map-based version's constant-factor overhead (hashing, string edge
+ * keys, per-call allocation) dominates wall-clock time on large networks.
+ * Predecessor lists are threaded through the CSR's own slot indices
+ * (`predNext`/`predFrom`, linked via `predHead`) rather than allocated as
+ * `Map<string, string[]>` per source.
  *
- * Node betweenness is left un-normalized here; the per-component normalization
- * factor (`1 / ((n-1)(n-2))`, using THAT node's own component size) is applied
- * by the caller (networkAnalyzerColumns.ts), matching Java applying it inside
- * the per-component loop rather than globally.
+ * Edge betweenness is accumulated per logical edge id (see
+ * networkAnalyzerGraph.ts's `anyEdgeIds`/`outEdgeIds` — not per literal
+ * CX2/CyEdge id) — parallel edges between the same node pair collapse to one
+ * Brandes edge, matching Java's node-pair-hash approach. The caller is
+ * responsible for writing that one value back to every literal edge sharing
+ * the pair.
+ *
+ * Node betweenness is left un-normalized here; the per-component
+ * normalization factor (`1 / ((n-1)(n-2))`, using THAT node's own component
+ * size) is applied by the caller (networkAnalyzerColumns.ts), matching Java
+ * applying it inside the per-component loop rather than globally.
  */
 
 export interface BetweennessResult {
-  /** Raw (un-normalized) node betweenness. */
-  betweenness: Map<string, number>
-  stress: Map<string, number>
-  /** Keyed by `edgeKey(u, v)`. */
-  edgeBetweenness: Map<string, number>
+  /** Raw (un-normalized) node betweenness, indexed by node index. */
+  betweenness: Float64Array
+  /** Indexed by node index. */
+  stress: Float64Array
+  /** Indexed by logical edge id. */
+  edgeBetweenness: Float64Array
 }
 
 export function computeBetweenness(
-  nodeIds: string[],
-  adjacency: Map<string, Set<string>>,
-  edgeKey: (from: string, to: string) => string,
+  nodeCount: number,
+  offsets: Int32Array,
+  targets: Int32Array,
+  edgeIds: Int32Array,
+  edgeCount: number,
 ): BetweennessResult {
-  const betweenness = new Map<string, number>(nodeIds.map((id) => [id, 0]))
-  const stress = new Map<string, number>(nodeIds.map((id) => [id, 0]))
-  const edgeBetweenness = new Map<string, number>()
+  const betweenness = new Float64Array(nodeCount)
+  const stress = new Float64Array(nodeCount)
+  const edgeBetweenness = new Float64Array(edgeCount)
 
-  for (const source of nodeIds) {
-    // --- forward BFS: distances, shortest-path counts (sigma), predecessors ---
-    const order: string[] = [source]
-    const predecessors = new Map<string, string[]>()
-    const sigma = new Map<string, number>([[source, 1]])
-    const distance = new Map<string, number>([[source, 0]])
+  // Scratch buffers reused across every source iteration.
+  const distance = new Int32Array(nodeCount)
+  const sigma = new Float64Array(nodeCount) // shortest-path counts; float64 avoids int32 overflow, same reasoning as using `double` in Java
+  const delta = new Float64Array(nodeCount)
+  const stressDependency = new Float64Array(nodeCount)
+  const order = new Int32Array(nodeCount) // BFS discovery order, doubles as Brandes' stack
+  const predHead = new Int32Array(nodeCount) // -1 = no predecessors
+  const slotCount = targets.length
+  const predNext = new Int32Array(slotCount) // singly-linked list threaded through CSR slot indices
+  const predFrom = new Int32Array(slotCount) // predecessor node for that CSR slot
+
+  for (let source = 0; source < nodeCount; source++) {
+    distance.fill(-1)
+    sigma.fill(0)
+    delta.fill(0)
+    stressDependency.fill(0)
+    predHead.fill(-1)
+
+    distance[source] = 0
+    sigma[source] = 1
+    order[0] = source
     let head = 0
+    let tail = 1
 
-    while (head < order.length) {
-      const v = order[head++]
-      const dv = distance.get(v)!
-      for (const w of adjacency.get(v) ?? []) {
-        if (!distance.has(w)) {
-          distance.set(w, dv + 1)
-          order.push(w)
+    // --- forward BFS: distances, shortest-path counts (sigma), predecessors ---
+    while (head < tail) {
+      const u = order[head++]
+      const du = distance[u]
+      const s = offsets[u]
+      const e = offsets[u + 1]
+      for (let i = s; i < e; i++) {
+        const v = targets[i]
+        if (distance[v] === -1) {
+          distance[v] = du + 1
+          order[tail++] = v
         }
-        if (distance.get(w) === dv + 1) {
-          sigma.set(w, (sigma.get(w) ?? 0) + sigma.get(v)!)
-          let preds = predecessors.get(w)
-          if (preds === undefined) {
-            preds = []
-            predecessors.set(w, preds)
-          }
-          preds.push(v)
+        if (distance[v] === du + 1) {
+          sigma[v] += sigma[u]
+          predNext[i] = predHead[v]
+          predHead[v] = i
+          predFrom[i] = u
         }
       }
     }
 
     // --- backward accumulation, in reverse BFS-discovery order ---
-    const delta = new Map<string, number>()
-    const stressDependency = new Map<string, number>()
+    for (let k = tail - 1; k >= 0; k--) {
+      const w = order[k]
+      const deltaw = delta[w]
+      const stressw = stressDependency[w]
+      const sigmaw = sigma[w]
 
-    for (let i = order.length - 1; i >= 0; i--) {
-      const w = order[i]
-      const deltaw = delta.get(w) ?? 0
-      const stressw = stressDependency.get(w) ?? 0
-      const sigmaw = sigma.get(w)!
-
-      for (const v of predecessors.get(w) ?? []) {
+      for (let slot = predHead[w]; slot !== -1; slot = predNext[slot]) {
+        const v = predFrom[slot]
         // Standard Brandes edge-dependency formula: (sigma_v/sigma_w) * (1 + delta_w).
         // This is the exact quantity contributed to both delta(v) and the (v,w)
         // edge's betweenness — Java's Dbetweenness-based recursion computes the
         // same value through the DAG's descendant edges instead of directly.
-        const contribution = (sigma.get(v)! / sigmaw) * (1 + deltaw)
-        delta.set(v, (delta.get(v) ?? 0) + contribution)
-        stressDependency.set(v, (stressDependency.get(v) ?? 0) + 1 + stressw)
-
-        const key = edgeKey(v, w)
-        edgeBetweenness.set(key, (edgeBetweenness.get(key) ?? 0) + contribution)
+        const contribution = (sigma[v] / sigmaw) * (1 + deltaw)
+        delta[v] += contribution
+        stressDependency[v] += 1 + stressw
+        edgeBetweenness[edgeIds[slot]] += contribution
       }
 
       if (w !== source) {
-        betweenness.set(w, (betweenness.get(w) ?? 0) + deltaw)
-        stress.set(w, (stress.get(w) ?? 0) + sigmaw * stressw)
+        betweenness[w] += deltaw
+        stress[w] += sigmaw * stressw
       }
     }
   }

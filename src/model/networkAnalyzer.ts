@@ -22,31 +22,32 @@
  *  - directed: everything is whole-network, no restriction.
  */
 import {
-  bfsEccentricity,
+  BfsResult,
   buildGraph,
+  computeAllNodeBfs,
   countClosedNeighborPairs,
   countMultiEdgeNodePairs,
   findComponents,
-  inducedSubgraph,
   largestComponent,
   NetworkGraph,
   sumSelfLoops,
 } from './networkAnalyzerGraph'
 import { EdgeEndpoints, NetworkAnalysisOptions, NetworkAnalysisResult } from './networkAnalyzerTypes'
 
-/** Shortest-path summary across every node, via BFS over the given adjacency. */
-function computePathStats(nodeIds: string[], adjacency: Map<string, Set<string>>) {
+/**
+ * Shortest-path summary across `indices`, reading from an already-computed
+ * per-node BFS result array (see `computeAllNodeBfs`) rather than re-running
+ * BFS — `bfsResults` is expected to be indexed by node index.
+ */
+function computePathStats(indices: number[], bfsResults: BfsResult[]) {
   let diameter = 0
   let radius = 0
   let connectedPairs = 0
   let totalLength = 0
   let sawPositiveEccentricity = false
 
-  for (const nodeId of nodeIds) {
-    const { eccentricity, reachableCount, totalLength: nodeTotalLength } = bfsEccentricity(
-      nodeId,
-      adjacency,
-    )
+  for (const i of indices) {
+    const { eccentricity, reachableCount, totalLength: nodeTotalLength } = bfsResults[i]
     if (eccentricity > diameter) diameter = eccentricity
     if (eccentricity > 0 && (!sawPositiveEccentricity || eccentricity < radius)) {
       radius = eccentricity
@@ -62,17 +63,21 @@ function computePathStats(nodeIds: string[], adjacency: Map<string, Set<string>>
 
 type SummaryStats = Omit<NetworkAnalysisResult, 'analysisTimeMs' | 'directed' | 'edgeCount'>
 
-function analyzeUndirected(graph: NetworkGraph): SummaryStats {
+function analyzeUndirected(graph: NetworkGraph, allNodesBfs: BfsResult[]): SummaryStats {
   const nodeCount = graph.nodeIds.length
-  const components = findComponents(graph.nodeIds, graph.anyNeighbors)
+  const components = findComponents(nodeCount, graph.anyOffsets, graph.anyTargets)
   const connectedComponents = components.length
 
   // Everything below is scoped to the largest connected component only — see
-  // the module-level comment for why.
+  // the module-level comment for why. No induced subgraph is needed: every
+  // neighbor of a node inside the largest component is, by definition of
+  // connectivity, also inside it — so reading directly from `graph`'s own
+  // CSR restricted to `componentNodes` gives identical results to an
+  // induced-subgraph copy, without the extra allocation.
   const componentNodes = largestComponent(components)
-  const component = inducedSubgraph(graph, componentNodes)
-  const { anyNeighbors } = component
+  const { anyOffsets, anyTargets } = graph
   const componentSize = componentNodes.length
+  const scratch = new Uint8Array(nodeCount)
 
   let neighborSum = 0
   let neighborSqSum = 0
@@ -80,16 +85,17 @@ function analyzeUndirected(graph: NetworkGraph): SummaryStats {
   let isolatedNodes = 0
   let clusteringSum = 0
 
-  for (const nodeId of componentNodes) {
-    const neighbors = anyNeighbors.get(nodeId)!
-    const k = neighbors.size
+  for (const node of componentNodes) {
+    const start = anyOffsets[node]
+    const end = anyOffsets[node + 1]
+    const k = end - start
     neighborSum += k
     neighborSqSum += k * k
     if (k > maxNeighborCount) maxNeighborCount = k
     if (k === 0) isolatedNodes++
 
     if (k > 1) {
-      const closed = countClosedNeighborPairs(neighbors, (u, v) => anyNeighbors.get(u)!.has(v))
+      const closed = countClosedNeighborPairs(start, end, anyTargets, anyOffsets, anyTargets, scratch)
       clusteringSum += closed / (k * (k - 1))
     }
   }
@@ -106,7 +112,7 @@ function analyzeUndirected(graph: NetworkGraph): SummaryStats {
 
   const { diameter, radius, connectedPairs, avgShortestPathLength } = computePathStats(
     componentNodes,
-    anyNeighbors,
+    allNodesBfs,
   )
 
   return {
@@ -122,29 +128,33 @@ function analyzeUndirected(graph: NetworkGraph): SummaryStats {
     avgShortestPathLength,
     connectedPairs,
     isolatedNodes,
-    selfLoops: sumSelfLoops(component.selfLoopCounts, componentNodes),
-    multiEdgeNodePairs: countMultiEdgeNodePairs(component.anyNeighborCounts),
+    selfLoops: sumSelfLoops(graph.selfLoopCounts, componentNodes),
+    multiEdgeNodePairs: countMultiEdgeNodePairs(graph.anyNeighborCounts, componentNodes),
   }
 }
 
-function analyzeDirected(graph: NetworkGraph): SummaryStats {
-  const { nodeIds, anyNeighbors, outNeighbors } = graph
-  const nodeCount = nodeIds.length
+function analyzeDirected(graph: NetworkGraph, allNodesBfs: BfsResult[]): SummaryStats {
+  const nodeCount = graph.nodeIds.length
+  const { anyOffsets, anyTargets, outOffsets, outTargets } = graph
+  const scratch = new Uint8Array(nodeCount)
+  const allIndices: number[] = new Array(nodeCount)
 
   let neighborSum = 0
   let outNeighborSum = 0
   let isolatedNodes = 0
   let clusteringSum = 0
 
-  for (const nodeId of nodeIds) {
-    const neighbors = anyNeighbors.get(nodeId)!
-    const k = neighbors.size
+  for (let node = 0; node < nodeCount; node++) {
+    allIndices[node] = node
+    const anyStart = anyOffsets[node]
+    const anyEnd = anyOffsets[node + 1]
+    const k = anyEnd - anyStart
     neighborSum += k
-    outNeighborSum += outNeighbors.get(nodeId)!.size
+    outNeighborSum += outOffsets[node + 1] - outOffsets[node]
     if (k === 0) isolatedNodes++
 
     if (k > 1) {
-      const closed = countClosedNeighborPairs(neighbors, (u, v) => outNeighbors.get(u)!.has(v))
+      const closed = countClosedNeighborPairs(anyStart, anyEnd, anyTargets, outOffsets, outTargets, scratch)
       clusteringSum += closed / (k * (k - 1))
     }
   }
@@ -153,7 +163,7 @@ function analyzeDirected(graph: NetworkGraph): SummaryStats {
   const density = nodeCount > 1 ? outNeighborSum / (nodeCount * (nodeCount - 1)) : 0
   const clusteringCoefficient = nodeCount > 0 ? clusteringSum / nodeCount : 0
 
-  const { diameter, radius, connectedPairs, avgShortestPathLength } = computePathStats(nodeIds, outNeighbors)
+  const { diameter, radius, connectedPairs, avgShortestPathLength } = computePathStats(allIndices, allNodesBfs)
 
   return {
     nodeCount,
@@ -164,33 +174,55 @@ function analyzeDirected(graph: NetworkGraph): SummaryStats {
     clusteringCoefficient,
     // Connected components are always weak (ANY-direction), matching
     // ConnComponentAnalyzer's behavior for both directed and undirected networks.
-    connectedComponents: findComponents(nodeIds, anyNeighbors).length,
+    connectedComponents: findComponents(nodeCount, anyOffsets, anyTargets).length,
     diameter,
     radius,
     avgShortestPathLength,
     connectedPairs,
     isolatedNodes,
-    selfLoops: sumSelfLoops(graph.selfLoopCounts, nodeIds),
-    multiEdgeNodePairs: countMultiEdgeNodePairs(graph.anyNeighborCounts),
+    selfLoops: sumSelfLoops(graph.selfLoopCounts, allIndices),
+    multiEdgeNodePairs: countMultiEdgeNodePairs(graph.anyNeighborCounts, allIndices),
   }
 }
 
 /**
+ * Graph + all-node BFS results already computed elsewhere (e.g. because the
+ * caller is also computing per-node table columns, which need the exact same
+ * BFS pass — see networkAnalyzerColumns.ts / useAnalyzeNetworkAction.ts).
+ * Passing this in lets `analyzeNetwork` skip redoing that O(V·(V+E)) work.
+ * `sharedComputeMs` is folded into the returned `analysisTimeMs` so the
+ * reported cost stays honest even though the work is shared with other output.
+ */
+export interface PrecomputedAnalysis {
+  graph: NetworkGraph
+  allNodesBfs: BfsResult[]
+  sharedComputeMs: number
+}
+
+/**
  * Runs the Network Analyzer "Summary Statistics" computation over the given
- * network elements. `edges` provide raw endpoints only — the graph is rebuilt
- * from scratch each call (no incremental/cached state).
+ * network elements. `edges` provide raw endpoints only — by default the graph
+ * and its BFS pass are (re)built from scratch; pass `precomputed` to reuse
+ * work already done by a caller that also needs per-node/edge table columns.
  */
 export function analyzeNetwork(
   nodeIds: string[],
   edges: EdgeEndpoints[],
   options: NetworkAnalysisOptions,
+  precomputed?: PrecomputedAnalysis,
 ): NetworkAnalysisResult {
   const start = performance.now()
 
-  const graph = buildGraph(nodeIds, edges)
-  const summary = options.directed ? analyzeDirected(graph) : analyzeUndirected(graph)
+  const graph = precomputed?.graph ?? buildGraph(nodeIds, edges)
+  const offsets = options.directed ? graph.outOffsets : graph.anyOffsets
+  const targets = options.directed ? graph.outTargets : graph.anyTargets
+  const allNodesBfs = precomputed?.allNodesBfs ?? computeAllNodeBfs(graph.nodeIds.length, offsets, targets)
 
-  const analysisTimeMs = performance.now() - start
+  const summary = options.directed
+    ? analyzeDirected(graph, allNodesBfs)
+    : analyzeUndirected(graph, allNodesBfs)
+
+  const analysisTimeMs = (precomputed?.sharedComputeMs ?? 0) + (performance.now() - start)
 
   return {
     ...summary,

@@ -37,7 +37,18 @@ export const NetworkAnalyzerApp: CyAppWithLifecycle = {
       slot: 'apps-menu',
       id: 'action',
       component: lazy(() => import('./components/AppMenuItem')),
-      closeOnAction: true, // auto-close menu after action
+      // NOT `closeOnAction: true` — that closes the dropdown on ANY click
+      // inside this menu item (host wraps it in an onClick that calls
+      // `handleClose` via `queueMicrotask`, then the dropdown's exit
+      // transition unmounts this subtree once it finishes). "Analyze
+      // Network" kicks off an async Web Worker run that can easily outlast
+      // that transition, and an unmount mid-run silently kills the worker
+      // (via useNetworkAnalyzerWorker's cleanup effect) with no error and no
+      // result — confirmed as the cause of analyses silently vanishing when
+      // triggered from this menu. Instead, AppMenuItem calls `handleClose`
+      // itself, but only once the analysis has genuinely finished (see
+      // AnalyzeNetworkForm's `onAnalyze` callback).
+      closeOnAction: false,
     },
     {
       slot: 'right-panel',

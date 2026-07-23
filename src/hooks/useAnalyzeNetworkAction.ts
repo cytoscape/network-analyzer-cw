@@ -1,12 +1,14 @@
+import { useCallback, useState } from 'react'
 import { useElementApi } from 'cyweb/ElementApi'
 import { useTableApi } from 'cyweb/TableApi'
 import { ValueTypeName } from 'cyweb/ApiTypes'
 
-import { analyzeNetwork } from '../model/networkAnalyzer'
-import { ColumnValues, computeNetworkAnalyzerColumns } from '../model/networkAnalyzerColumns'
-import { buildGraph } from '../model/networkAnalyzerGraph'
+import { ColumnValues } from '../model/networkAnalyzerColumns'
 import { IdentifiedEdge } from '../model/networkAnalyzerTypes'
 import { setAnalysisResult } from './analysisResultStore'
+import { AnalysisCancelledError, useNetworkAnalyzerWorker } from './useNetworkAnalyzerWorker'
+
+export type AnalyzeStatus = 'idle' | 'analyzing' | 'saving'
 
 /** IsSingleNode is the only boolean column — everything else is numeric. */
 const BOOLEAN_COLUMNS = new Set(['IsSingleNode'])
@@ -35,47 +37,75 @@ function writeColumns(
 }
 
 /**
- * Returns a function that runs the Network Analyzer algorithm against
- * `networkId`, stores the summary result (keyed by network id) for the
- * results panel to pick up, and writes the per-node/per-edge metrics as
- * table columns via `cyweb/TableApi`. Shared by the Apps menu form and the
- * results panel form so both trigger identical behavior.
+ * Returns the Network Analyzer trigger + its live status, shared by the Apps
+ * menu form and the results panel form so both behave identically.
+ *
+ * Fetches nodes/edges via `elementApi` on the main thread (fast, not the
+ * bottleneck), runs the actual O(V·(V+E)) analysis in a Web Worker so the tab
+ * stays responsive — and cancellable, see useNetworkAnalyzerWorker.ts — then
+ * writes the results back via `cyweb/TableApi` in a separate, non-cancellable
+ * "saving" phase (a partial column write would leave the tables inconsistent).
  */
-export function useAnalyzeNetworkAction(): (networkId: string, directed: boolean) => void {
+export function useAnalyzeNetworkAction(): {
+  analyze: (networkId: string, directed: boolean, onComplete?: () => void) => void
+  cancel: () => void
+  status: AnalyzeStatus
+} {
   const elementApi = useElementApi()
   const tableApi = useTableApi()
+  const { runInWorker, cancel: cancelWorker } = useNetworkAnalyzerWorker()
+  const [status, setStatus] = useState<AnalyzeStatus>('idle')
 
-  return (networkId: string, directed: boolean): void => {
-    const wallClockStart = performance.now()
+  const analyze = useCallback(
+    (networkId: string, directed: boolean, onComplete?: () => void): void => {
+      const wallClockStart = performance.now()
 
-    const nodeIdsResult = elementApi.getNodeIds(networkId)
-    const edgeIdsResult = elementApi.getEdgeIds(networkId)
-    if (!nodeIdsResult.success || !edgeIdsResult.success) {
-      console.error('Failed to read network elements for analysis.')
-      return
-    }
+      const nodeIdsResult = elementApi.getNodeIds(networkId)
+      const edgesResult = elementApi.getEdges(networkId)
+      if (!nodeIdsResult.success || !edgesResult.success) {
+        console.error('Failed to read network elements for analysis.')
+        return
+      }
 
-    const edges: IdentifiedEdge[] = edgeIdsResult.data.edgeIds.flatMap((edgeId) => {
-      const edgeResult = elementApi.getEdge(networkId, edgeId)
-      return edgeResult.success ? [{ id: edgeId, ...edgeResult.data }] : []
-    })
-    const nodeIds = nodeIdsResult.data.nodeIds
+      const edges: IdentifiedEdge[] = edgesResult.data.edges
+      const nodeIds = nodeIdsResult.data.nodeIds
 
-    const result = analyzeNetwork(nodeIds, edges, { directed })
+      setStatus('analyzing')
+      runInWorker({ nodeIds, edges, directed })
+        .then(({ result, nodeColumns, edgeColumns }) => {
+          setStatus('saving')
+          writeColumns(tableApi, networkId, 'node', nodeColumns)
+          writeColumns(tableApi, networkId, 'edge', edgeColumns)
 
-    const graph = buildGraph(nodeIds, edges)
-    const { nodeColumns, edgeColumns } = computeNetworkAnalyzerColumns(graph, edges, { directed })
-    writeColumns(tableApi, networkId, 'node', nodeColumns)
-    writeColumns(tableApi, networkId, 'edge', edgeColumns)
+          const wallClockMs = performance.now() - wallClockStart
+          console.log(`Network Analyzer — Summary Statistics (${directed ? 'directed' : 'undirected'})`)
+          console.table(result)
+          console.log(
+            `Analysis: ${result.analysisTimeMs.toFixed(2)} ms · Total (fetch + analysis): ${wallClockMs.toFixed(2)} ms`,
+          )
 
-    const wallClockMs = performance.now() - wallClockStart
+          setAnalysisResult(networkId, result)
+          setStatus('idle')
+          // Called directly here (not inferred from a status transition) —
+          // `setStatus('saving')` and this `setStatus('idle')` run in the same
+          // tick with no `await` between them, so React 18 batches them into
+          // one commit and a caller watching for a 'saving' -> 'idle' render
+          // transition would never see it.
+          onComplete?.()
+        })
+        .catch((error: unknown) => {
+          if (!(error instanceof AnalysisCancelledError)) {
+            console.error('Network analysis failed:', error)
+          }
+          setStatus('idle')
+        })
+    },
+    [elementApi, tableApi, runInWorker],
+  )
 
-    console.log(`Network Analyzer — Summary Statistics (${directed ? 'directed' : 'undirected'})`)
-    console.table(result)
-    console.log(
-      `Analysis: ${result.analysisTimeMs.toFixed(2)} ms · Total (fetch + analysis): ${wallClockMs.toFixed(2)} ms`,
-    )
+  const cancel = useCallback((): void => {
+    cancelWorker()
+  }, [cancelWorker])
 
-    setAnalysisResult(networkId, result)
-  }
+  return { analyze, cancel, status }
 }
