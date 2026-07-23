@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules/
 dist
 dist-ssr
+dist-test/
 *.local
 yarn.lock
 
@@ -35,3 +36,4 @@ yarn.lock
 src/assets/config.json.bak
 src/assets/config-dev3.json
 .mf
+.tmpmove
