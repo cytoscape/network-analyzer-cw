@@ -1,4 +1,4 @@
-import { Box, Button, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material'
+import { Box, Button, List, ListItem, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
 import { useState } from 'react'
 
@@ -30,11 +30,14 @@ const METRICS: ReadonlyArray<{ label: string; value: (result: NetworkAnalysisRes
   { label: 'Connected components', value: (r) => formatNumber(r.connectedComponents) },
   { label: 'Multi-edge node pairs', value: (r) => formatNumber(r.multiEdgeNodePairs) },
   { label: 'Number of self-loops', value: (r) => formatNumber(r.selfLoops) },
-  { label: 'Analysis time (sec)', value: (r) => formatNumber(r.analysisTimeMs / 1000) },
 ]
 
+const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
+  <>Node specific statistics are found in the NODES Table.</>,
+  <>Edge <i>Betweenness</i> is added to the EDGES Table.</>
+]
 
-const ResultsPanel = (): JSX.Element => {
+const MainPanel = (): JSX.Element => {
   const [newAnalysis, setNewAnalysis] = useState(false)
 
   const workspaceApi = useWorkspaceApi()
@@ -51,44 +54,45 @@ const ResultsPanel = (): JSX.Element => {
 
   if (result === undefined || newAnalysis) {
     return (
-      <Paper
-        variant="outlined"
-        sx={{
-          mx: 'auto',
-          my: 2,
-          maxWidth: 400,
-          boxShadow: (theme) => theme.shadows[4],
-        }}
-      >
-        <Box
+      <Box sx={{ p: 2 }}>
+        <Paper
+          variant="outlined"
           sx={{
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            gap: 2,
-            px: 2,
-            py: 0.75,
-            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            mx: 'auto',
+            maxWidth: 400,
+            boxShadow: (theme) => theme.shadows[4],
           }}
         >
-          <Typography variant="overline" color="text.primary">
-            New Analysis
-          </Typography>
-        {newAnalysis && (
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => setNewAnalysis(false)}
-            sx={{ borderRadius: 4, textTransform: 'none' }}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              gap: 2,
+              px: 2,
+              py: 0.75,
+              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            }}
           >
-            Cancel
-          </Button>
-        )}
-        </Box>
-        <Box sx={{ px: 2, py: 1 }}>
-          <AnalyzeNetworkForm onAnalyze={() => setNewAnalysis(false)} />
-        </Box>
-      </Paper>
+            <Typography variant="overline" color="text.primary">
+              New Analysis
+            </Typography>
+          {newAnalysis && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setNewAnalysis(false)}
+              sx={{ borderRadius: 4, textTransform: 'none' }}
+            >
+              Cancel
+            </Button>
+          )}
+          </Box>
+          <Box sx={{ px: 2, py: 1 }}>
+            <AnalyzeNetworkForm onAnalyze={() => setNewAnalysis(false)} />
+          </Box>
+        </Paper>
+      </Box>
     )
   }
 
@@ -102,7 +106,6 @@ const ResultsPanel = (): JSX.Element => {
           px: 2,
           py: 1,
           backgroundColor: (theme) => theme.palette.background.default,
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
         <Box
@@ -116,7 +119,7 @@ const ResultsPanel = (): JSX.Element => {
         >
           <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, mt: 0.75, paddingLeft: '9px', textIndent: '-9px' }}>
             <Typography component="span" variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-              &bull;&nbsp;<b>{result.directed ? 'Directed' : 'Undirected'}</b>&mdash;
+              <b>{result.directed ? 'Directed' : 'Undirected'}</b>&mdash;
             </Typography>
             {networkName}
           </Typography>
@@ -144,25 +147,49 @@ const ResultsPanel = (): JSX.Element => {
         </Typography>
         <Table size="small">
           <TableBody>
-            {METRICS.map(({ label, value }) => {
-              const formatted = value(result)
-              if (formatted === null) return null
-              return (
-                <TableRow key={label}>
-                  <TableCell sx={{ color: 'text.secondary', pl: 0 }}>
-                    {label}
-                  </TableCell>
-                  <TableCell align="right" sx={{ pr: 0 }}>
-                    {formatted}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+          {METRICS.map(({ label, value }) => {
+            const formatted = value(result)
+            if (formatted === null) return null
+            return (
+              <TableRow key={label}>
+                <TableCell sx={{ color: 'text.secondary', pl: 0 }}>
+                  {label}
+                </TableCell>
+                <TableCell align="right" sx={{ pr: 0 }}>
+                  {formatted}
+                </TableCell>
+              </TableRow>
+            )
+          })}
           </TableBody>
         </Table>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
+          Analysis time (sec): {formatNumber(result.analysisTimeMs / 1000)}
+        </Typography>
+        <List
+          dense
+          sx={{
+            mt: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            listStyleType: 'disc',
+            pl: 2,
+            '& ::marker': { 
+              color: 'text.disabled',
+            } 
+          }}
+        >
+        {EXTRA_INFO.map((info, index) => (
+          <ListItem key={index} sx={{ py: 0, px: 0, display: 'list-item' }}>
+            <Typography variant="caption" color="text.secondary">
+              {info}
+            </Typography>
+          </ListItem>
+        ))}
+        </List>
       </Box>
     </Box>
   )
 }
 
-export default ResultsPanel
+export default MainPanel
