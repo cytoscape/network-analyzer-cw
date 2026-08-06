@@ -11,6 +11,7 @@
     "test": "tsc -p tsconfig.test.json && node -e 'require(\"fs\").writeFileSync(\"dist-test/package.json\",JSON.stringify({type:\"commonjs\"}))' && node --test 'dist-test/**/*.test.js'"
   },
   "devDependencies": {
+    "@cytoscape-web/api-types": "^1.0.0-beta.3",
     "@module-federation/enhanced": "^2.6.0",
     "@mui/material": "^5.18.0",
     "@types/cytoscape": "^3.21.0",
@@ -24,12 +25,12 @@
     "webpack-dev-server": "^5.2.4"
   },
   "dependencies": {
-    "@cytoscape-web/api-types": "^1.0.0-beta.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^5.18.0",
     "cytoscape": "^3.34.0",
-    "cytoscape-euler": "^1.2.4"
+    "cytoscape-euler": "^1.2.4",
+    "plotly.js-dist": "^3.7.0"
   },
   "peerDependencies": {
     "@mui/material": "^5.18.0",

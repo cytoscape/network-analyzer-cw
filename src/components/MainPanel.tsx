@@ -1,4 +1,19 @@
-import { Box, Button, List, ListItem, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material'
+import { 
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  List,
+  ListItem,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  Typography,
+  DialogContent,
+  IconButton,
+} from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
 import { useState } from 'react'
 
@@ -8,6 +23,9 @@ import { useAnalysisResult } from '../hooks/analysisResultStore'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import AnalyzeNetworkForm from './AnalyzeNetworkForm'
+
+import BarChartIcon from '@mui/icons-material/BarChart'
+import CloseIcon from '@mui/icons-material/Close'
 
 
 function formatNumber(value: number): string {
@@ -37,6 +55,53 @@ const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
   <>Edge <i>Betweenness</i> is added to the EDGES Table.</>
 ]
 
+
+const AnalyzerDialog = ({ open, onClose }: { open: boolean; onClose: () => void }): JSX.Element => {
+  return (
+    <Dialog
+      open={open}
+      maxWidth="xs"
+      fullWidth
+      onClose={onClose}
+    >
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 3,
+          py: 2,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Typography variant="h6">Network Analyzer</Typography>
+        <IconButton size="small" onClick={onClose} aria-label="Close dialog">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ pt: (theme) => `${theme.spacing(1)} !important` }}>
+        <AnalyzeNetworkForm onAnalyze={() => onClose()} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+
+const ChartButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }): JSX.Element => {
+  return (
+    <Button
+      variant="outlined"
+      size="small"
+      startIcon={<BarChartIcon />}
+      sx={{ minWidth: 220, textTransform: 'none', borderRadius: 4, backgroundColor: (theme) => theme.palette.background.paper }}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+}
+
+
 const MainPanel = (): JSX.Element => {
   const [newAnalysis, setNewAnalysis] = useState(false)
 
@@ -46,52 +111,23 @@ const MainPanel = (): JSX.Element => {
 
   if (networkId === '') {
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography color="text.secondary">No network is selected for analysis.</Typography>
-      </Box>
-    )
-  }
-
-  if (result === undefined || newAnalysis) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Paper
-          variant="outlined"
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          display: 'grid',
+          padding: '1em',
+          backgroundColor: (theme) => theme.palette.background.paper,
+        }}
+      >
+        <Box
           sx={{
-            mx: 'auto',
-            maxWidth: 400,
-            boxShadow: (theme) => theme.shadows[4],
+            margin: 'auto',
+            color: (theme) => theme.palette.text.disabled,
           }}
         >
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              gap: 2,
-              px: 2,
-              py: 0.75,
-              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Typography variant="overline" color="text.primary">
-              New Analysis
-            </Typography>
-          {newAnalysis && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setNewAnalysis(false)}
-              sx={{ borderRadius: 4, textTransform: 'none' }}
-            >
-              Cancel
-            </Button>
-          )}
-          </Box>
-          <Box sx={{ px: 2, py: 1 }}>
-            <AnalyzeNetworkForm onAnalyze={() => setNewAnalysis(false)} />
-          </Box>
-        </Paper>
+          <h2>No network selected</h2>
+        </Box>
       </Box>
     )
   }
@@ -118,9 +154,11 @@ const MainPanel = (): JSX.Element => {
           }}
         >
           <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, mt: 0.75, paddingLeft: '9px', textIndent: '-9px' }}>
+          {result && (
             <Typography component="span" variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
               <b>{result.directed ? 'Directed' : 'Undirected'}</b>&mdash;
             </Typography>
+          )}
             {networkName}
           </Typography>
           <Button
@@ -132,13 +170,13 @@ const MainPanel = (): JSX.Element => {
             New Analysis...
           </Button>
         </Box>
-        
       </Box>
+    {result && (
+      <>
       <Box
         sx={{
           px: 2,
           py: 1,
-          flexGrow: 1,
           overflowY: 'auto',
         }}
       >
@@ -188,6 +226,27 @@ const MainPanel = (): JSX.Element => {
         ))}
         </List>
       </Box>
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 1,
+          backgroundColor: (theme) => theme.palette.background.default,
+        }}
+      >
+        <ChartButton onClick={() => undefined}>
+          Node Degree Distribution
+        </ChartButton>
+        <ChartButton onClick={() => undefined}>
+          Betweenness by Degree
+        </ChartButton>
+      </Box>
+    </>
+    )}
+      <AnalyzerDialog open={newAnalysis} onClose={() => setNewAnalysis(false)} />
     </Box>
   )
 }
