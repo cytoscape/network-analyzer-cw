@@ -6,6 +6,9 @@
   "compilerOptions": {
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "allowSyntheticDefaultImports": true,
+    // api-types 1.0.0-beta.3 dist ships a broken bare `ReactNode` reference;
+    // skip dependency .d.ts checking (our own sources are still fully checked)
+    "skipLibCheck": true,
     "outDir": "./dist/",
     "noImplicitAny": true,
     "module": "ESNext",

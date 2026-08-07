@@ -127,6 +127,13 @@ export default (env) => {
           use: 'ts-loader',
           exclude: /node_modules/,
         },
+        // react-chart-editor (the plot dialogs' editor UI) ships its own
+        // stylesheet; inline it into the bundle — a federated remote can't
+        // serve separate static CSS assets to the host.
+        {
+          test: /\.css$/,
+          use: ['style-loader', 'css-loader'],
+        },
       ],
     },
     devServer: {

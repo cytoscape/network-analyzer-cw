@@ -16,8 +16,12 @@
     "@mui/material": "^5.18.0",
     "@types/cytoscape": "^3.21.0",
     "@types/cytoscape-euler": "^1.2.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "css-loader": "^7.1.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "style-loader": "^4.0.0",
     "ts-loader": "^9.5.2",
     "typescript": "^5.7.3",
     "webpack": "^5.107.2",
@@ -30,7 +34,8 @@
     "@mui/icons-material": "^5.18.0",
     "cytoscape": "^3.34.0",
     "cytoscape-euler": "^1.2.4",
-    "plotly.js-dist": "^3.7.0"
+    "plotly.js": "^3.7.0",
+    "react-chart-editor": "^0.46.1"
   },
   "peerDependencies": {
     "@mui/material": "^5.18.0",

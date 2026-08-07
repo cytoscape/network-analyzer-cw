@@ -15,14 +15,20 @@ import {
   IconButton,
 } from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 
 import { useWorkspaceApi } from 'cyweb/WorkspaceApi'
 
 import { useAnalysisResult } from '../hooks/analysisResultStore'
+import { useChartDialog } from '../hooks/useChartDialog'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import AnalyzeNetworkForm from './AnalyzeNetworkForm'
+
+// Module-scope lazy component (stable identity across renders). PlotDialog
+// pulls in plotly + react-chart-editor (a ~10 MB chunk) — deferring it to the
+// first chart-button click keeps the panel itself lightweight.
+const LazyPlotDialog = lazy(() => import('./PlotDialog'))
 
 import BarChartIcon from '@mui/icons-material/BarChart'
 import CloseIcon from '@mui/icons-material/Close'
@@ -108,6 +114,10 @@ const MainPanel = (): JSX.Element => {
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
+  const { plotSpec, openDegreeHistogram, openBetweennessScatter, closePlot, selectPoints } = useChartDialog(
+    networkId,
+    result?.directed ?? false,
+  )
 
   if (networkId === '') {
     return (
@@ -237,16 +247,21 @@ const MainPanel = (): JSX.Element => {
           backgroundColor: (theme) => theme.palette.background.default,
         }}
       >
-        <ChartButton onClick={() => undefined}>
+        <ChartButton onClick={openDegreeHistogram}>
           Node Degree Distribution
         </ChartButton>
-        <ChartButton onClick={() => undefined}>
+        <ChartButton onClick={openBetweennessScatter}>
           Betweenness by Degree
         </ChartButton>
       </Box>
     </>
     )}
       <AnalyzerDialog open={newAnalysis} onClose={() => setNewAnalysis(false)} />
+      {plotSpec !== null && (
+        <Suspense fallback={null}>
+          <LazyPlotDialog open onClose={closePlot} spec={plotSpec} onSelectPoints={selectPoints} />
+        </Suspense>
+      )}
     </Box>
   )
 }

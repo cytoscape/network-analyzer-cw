@@ -20,9 +20,10 @@
  * per-node/per-edge `complexParams` used for node/edge table columns
  * (betweenness, stress, closeness, topological coefficient, etc. — see
  * networkAnalyzerColumns.ts) are also ported, restricted to the same
- * scalar-per-element values Java writes as table attributes. The chart-only
- * distributions themselves (degree distribution, C(k), scatter plots) remain
- * out of scope — there's no chart UI for this app yet.
+ * scalar-per-element values Java writes as table attributes. The chart
+ * distributions (degree distribution, betweenness-by-degree scatter) are not
+ * precomputed here — the chart dialogs (PlotDialog.tsx, plotSpecs.ts) build
+ * them on demand from the written table columns, like CyPlot does on Desktop.
  */
 
 /** Minimal edge shape needed for analysis — endpoints only. */
