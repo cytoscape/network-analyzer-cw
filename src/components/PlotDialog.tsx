@@ -121,8 +121,60 @@ const PlotDialog = ({ open, onClose, spec, onSelectPoints }: PlotDialogProps): J
           editing (src/components/titles/index.js — "Subtitle is editable if
           and only if title is editable"), so this placeholder can't be turned
           off by config without also losing click-to-edit on the plot title.
-          CyPlot's plotly 2 predates subtitles, so Desktop never shows it. */}
-      <DialogContent sx={{ p: 0, height: '75vh', '& .gtitle-subtitle': { display: 'none' } }}>
+          CyPlot's plotly 2 predates subtitles, so Desktop never shows it.
+
+          `.fold__top` (the "trace 0" collapsible header) is pinned to
+          `height: 15px` by react-chart-editor.css, which is shorter than its
+          own 18px icons and so clips the header; letting it size to its
+          content restores the intended look. */}
+      <DialogContent
+        sx={{
+          p: 0,
+          height: '75vh',
+          '& .gtitle-subtitle': { display: 'none' }, // Hide plotly 3 subtitle placeholder
+          '& .editor_controls .fold__top': { height: 'unset' }, // Fix clipped header
+          // Use MUI palette colors, which should also work in dark mode:
+          '& .js-test-info': { color: 'var(--mui-palette-text-secondary)' },
+          '& .plotly-editor--theme-provider': {
+            '--border-default': '1px solid var(--mui-palette-divider)',
+            '--border-hover': '1px solid var(--mui-palette-divider)',
+            '--border-light': '1px solid var(--mui-palette-divider)',
+            '--border-dark': '1px solid var(--mui-palette-divider)',
+            '--color-background-light': 'var(--mui-palette-background-paper)',
+            '--color-background-medium': 'var(--mui-palette-background-paper)',
+            '--color-background-dark': 'var(--mui-palette-background-paper)',
+            '--color-background-base': 'var(--mui-palette-background-paper)',
+            '--color-background-top': 'var(--mui-palette-background-paper)',
+            '--color-background-bottom': 'var(--mui-palette-background-default)',
+            '--color-background-hover': 'var(--mui-palette-action-hover)',
+            '--color-text-active': 'var(--mui-palette-text-primary)',
+            '--color-text-base': 'var(--mui-palette-text-primary)',
+            '--color-text-light': 'var(--mui-palette-text-secondary)',
+            '--color-text-dark': 'var(--mui-palette-text-primary)',
+            '--color-text-strong': 'var(--mui-palette-text-primary)',
+            '--color-text-primary': 'var(--mui-palette-text-primary)',
+            '--color-text-secondary': 'var(--mui-palette-text-secondary)',
+            '--color-text-disabled': 'var(--mui-palette-action-disabled)',
+            '--color-text-section-header': 'var(--mui-palette-text-primary)',
+            '--color-button-primary-base-fill': 'var(--mui-palette-primary-main)',
+            '--color-button-primary-hover-fill': 'var(--mui-palette-primary-dark)',
+            '--color-button-primary-disabled-fill': 'var(--mui-palette-action-disabledBackground)',
+            '--color-button-primary-disabled-text': 'var(--mui-palette-action-disabled)',
+            '--color-accent': 'var(--mui-palette-primary-main)',
+            '--fold-header-background-base': 'var(--mui-palette-text-secondary)',
+            '--fold-header-background-closed': 'var(--mui-palette-text-secondary)',
+            '--fold-header-border-color-base': 'var(--mui-palette-divider)',
+            '--fold-header-border-color-closed': 'var(--mui-palette-divider)',
+            '--fold-header-text-color-base': 'var(--mui-palette-background-paper)',
+            '--fold-header-text-color-closed': 'var(--mui-palette-background-paper)',
+            '--panel-background': 'var(--mui-palette-background-default)',
+            '--sidebar-background': 'var(--mui-palette-background-paper)',
+            '--sidebar-item-background-base': 'var(--mui-palette-background-paper)',
+            '--text-shadow-dark-ui': 'none',
+            '--text-shadow-dark-ui-active': 'none',
+          },
+        }}
+      >
         {spec !== null && <EditorBody spec={spec} onSelectPoints={onSelectPoints} />}
       </DialogContent>
     </Dialog>
