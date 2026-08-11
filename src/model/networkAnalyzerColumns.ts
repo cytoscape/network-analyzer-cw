@@ -223,6 +223,10 @@ export function computeNetworkAnalyzerColumns(
       setColumn(nodeColumns, 'Indegree', nodeId, inDegree)
       setColumn(nodeColumns, 'Outdegree', nodeId, outDegree)
       setColumn(nodeColumns, 'EdgeCount', nodeId, inDegree + outDegree)
+      // Total degree, written under the same `Degree` name the undirected
+      // branch uses so the charts have one degree column in both modes (Java
+      // writes only `EdgeCount` here).
+      setColumn(nodeColumns, 'Degree', nodeId, inDegree + outDegree)
 
       const clusteringCoefficient =
         anyDegree > 1

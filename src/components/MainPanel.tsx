@@ -114,10 +114,7 @@ const MainPanel = (): JSX.Element => {
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
-  const { plotSpec, openDegreeHistogram, openBetweennessScatter, closePlot, selectPoints } = useChartDialog(
-    networkId,
-    result?.directed ?? false,
-  )
+  const { plotSpec, openDegreeHistogram, openBetweennessScatter, closePlot, selectPoints } = useChartDialog(networkId)
 
   if (networkId === '') {
     return (

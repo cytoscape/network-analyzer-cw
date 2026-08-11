@@ -112,6 +112,12 @@ test('directed chain (A -> B -> C): indegree/outdegree, betweenness, stress, edg
   assert.equal(nodeColumns.get('Indegree')!.get('C'), 1)
   assert.equal(nodeColumns.get('Outdegree')!.get('C'), 0)
 
+  // Directed mode also writes `Degree` (total degree = in + out) so the charts
+  // have the same degree column in both modes.
+  assert.equal(nodeColumns.get('Degree')!.get('A'), 1)
+  assert.equal(nodeColumns.get('Degree')!.get('B'), 2)
+  assert.equal(nodeColumns.get('Degree')!.get('C'), 1)
+
   // Only B lies on a directed shortest path (A -> B -> C), normalized by 1/((3-1)(3-2)) = 1/2.
   approxEqual(nodeColumns.get('BetweennessCentrality')!.get('A') as number, 0, 'betweenness A')
   approxEqual(nodeColumns.get('BetweennessCentrality')!.get('B') as number, 0.5, 'betweenness B')
@@ -119,7 +125,6 @@ test('directed chain (A -> B -> C): indegree/outdegree, betweenness, stress, edg
   assert.equal(nodeColumns.get('Stress')!.get('B'), 1)
 
   // Undirected-only columns must be absent in directed mode.
-  assert.equal(nodeColumns.has('Degree'), false)
   assert.equal(nodeColumns.has('Radiality'), false)
   assert.equal(nodeColumns.has('TopologicalCoefficient'), false)
 

@@ -16,15 +16,11 @@ import { buildHistogramSpec, buildScatterSpec, PlotSpec } from '../model/plotSpe
  * via `cyweb/SelectionApi` (CyPlot does this with a `network select`
  * cybrowser command keyed by node name; element ids are used here instead).
  *
- * The degree column is `Degree` for undirected analyses. A directed analysis
- * writes `EdgeCount` (in+out) instead of `Degree` (networkAnalyzerColumns.ts),
- * so that is used as the degree axis when the last analysis was directed —
- * the desktop app hardcodes `Degree` and its buttons simply fail on directed
- * results.
+ * Both modes write a `Degree` column (networkAnalyzerColumns.ts) — total
+ * degree (in+out) for directed analyses — so the charts always plot `Degree`.
  */
 export function useChartDialog(
   networkId: string,
-  directed: boolean,
 ): {
   plotSpec: PlotSpec | null
   openDegreeHistogram: () => void
@@ -80,25 +76,23 @@ export function useChartDialog(
     [tableApi, networkId],
   )
 
-  const degreeColumn = directed ? 'EdgeCount' : 'Degree'
-
   const openDegreeHistogram = useCallback((): void => {
-    const data = readColumns([degreeColumn])
+    const data = readColumns(['Degree'])
     if (data === null) return
     setOpenPlot({
-      spec: buildHistogramSpec(degreeColumn, data.values[0], data.names),
+      spec: buildHistogramSpec('Degree', data.values[0], data.names),
       nodeIds: data.nodeIds,
     })
-  }, [readColumns, degreeColumn])
+  }, [readColumns])
 
   const openBetweennessScatter = useCallback((): void => {
-    const data = readColumns([degreeColumn, 'BetweennessCentrality'])
+    const data = readColumns(['Degree', 'BetweennessCentrality'])
     if (data === null) return
     setOpenPlot({
-      spec: buildScatterSpec(degreeColumn, data.values[0], 'BetweennessCentrality', data.values[1], data.names),
+      spec: buildScatterSpec('Degree', data.values[0], 'BetweennessCentrality', data.values[1], data.names),
       nodeIds: data.nodeIds,
     })
-  }, [readColumns, degreeColumn])
+  }, [readColumns])
 
   const closePlot = useCallback((): void => setOpenPlot(null), [])
 
