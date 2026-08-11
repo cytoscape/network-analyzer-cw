@@ -23,6 +23,7 @@ import { useWorkspaceApi } from 'cyweb/WorkspaceApi'
 import { useAnalysisResult } from '../hooks/analysisResultStore'
 import { useChartDialog } from '../hooks/useChartDialog'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
+import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import AnalyzeNetworkForm from './AnalyzeNetworkForm'
 
@@ -34,6 +35,11 @@ const LazyPlotDialog = lazy(() => import('./PlotDialog'))
 import BarChartIcon from '@mui/icons-material/BarChart'
 import CloseIcon from '@mui/icons-material/Close'
 
+
+// Smallest network the analyzer accepts, as in ResultsPanel.updateButtons
+// ("Network Too Small<br>(must have at least 4 nodes and 1 edge)").
+const MIN_NODE_COUNT = 4
+const MIN_EDGE_COUNT = 1
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(3)
@@ -95,9 +101,10 @@ const AnalyzerDialog = ({ open, onClose }: { open: boolean; onClose: () => void 
 
 
 /**
- * A chart button. `missingColumns` are the node columns this chart needs that
- * the NODES table doesn't have: while any is missing the button is disabled
- * and a tooltip says which ones and how to get them back.
+ * A chart button. It is enabled only when the network has something to plot
+ * (`hasData`) and every node column the chart needs is in the NODES table;
+ * while a column is missing, a tooltip says which ones and how to get them
+ * back.
  *
  * Port of ResultsPanel.updateChartButton. The Java tooltip also names the
  * interpretation to re-run with ("run a new undirected analysis"), because
@@ -107,10 +114,12 @@ const AnalyzerDialog = ({ open, onClose }: { open: boolean; onClose: () => void 
  */
 const ChartButton = ({
   children,
+  hasData,
   missingColumns,
   onClick,
 }: {
   children: React.ReactNode
+  hasData: boolean
   missingColumns: string[]
   onClick?: () => void
 }): JSX.Element => {
@@ -120,14 +129,14 @@ const ChartButton = ({
       size="small"
       startIcon={<BarChartIcon />}
       sx={{ minWidth: 220, textTransform: 'none', borderRadius: 4, backgroundColor: (theme) => theme.palette.background.paper }}
-      disabled={missingColumns.length > 0}
+      disabled={!hasData || missingColumns.length > 0}
       onClick={onClick}
     >
       {children}
     </Button>
   )
 
-  if (missingColumns.length === 0) return button
+  if (!hasData || missingColumns.length === 0) return button
 
   const plural = missingColumns.length > 1
   return (
@@ -153,6 +162,7 @@ const MainPanel = (): JSX.Element => {
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
+  const { nodeCount, edgeCount } = useNetworkElementCounts(networkId)
   const {
     plotSpec,
     degreeHistogramMissingColumns,
@@ -189,6 +199,33 @@ const MainPanel = (): JSX.Element => {
   const summaryResult = workspaceApi.getNetworkSummary(networkId)
   const networkName = summaryResult.success ? summaryResult.data.name : networkId
 
+  // Same rules as ResultsPanel.updateButtons: too small a network has nothing
+  // meaningful to analyze, and an edgeless one nothing to plot.
+  const tooSmall = nodeCount < MIN_NODE_COUNT || edgeCount < MIN_EDGE_COUNT
+  const hasData = nodeCount > 0 && edgeCount > 0
+
+  // Mirrors ResultsPanel.update(): the size checks come first, so a network
+  // that has shrunk below the minimum reports that rather than statistics
+  // computed while it was still big enough.
+  const infoMessage =
+    nodeCount === 0
+      ? { title: 'Empty Network' }
+      : tooSmall
+        ? {
+            title: 'Network Too Small',
+            detail: `(must have at least ${MIN_NODE_COUNT} nodes and ${MIN_EDGE_COUNT} edge)`,
+          }
+        : result === undefined
+          ? {
+              title: 'No Statistics Found',
+              detail: '(run a new analysis to calculate statistics for this network)',
+            }
+          : undefined
+
+  // Non-undefined exactly when `infoMessage` is undefined — narrows `result`
+  // for the statistics table below.
+  const shownResult = infoMessage === undefined ? result : undefined
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box 
@@ -208,9 +245,9 @@ const MainPanel = (): JSX.Element => {
           }}
         >
           <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, mt: 0.75, paddingLeft: '9px', textIndent: '-9px' }}>
-          {result && (
+          {shownResult && (
             <Typography component="span" variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-              <b>{result.directed ? 'Directed' : 'Undirected'}</b>&mdash;
+              <b>{shownResult.directed ? 'Directed' : 'Undirected'}</b>&mdash;
             </Typography>
           )}
             {networkName}
@@ -218,6 +255,7 @@ const MainPanel = (): JSX.Element => {
           <Button
             variant="outlined"
             size="small"
+            disabled={tooSmall}
             onClick={() => setNewAnalysis(true)}
             sx={{ flexShrink: 0, borderRadius: 4, textTransform: 'none', backgroundColor: (theme) => theme.palette.background.paper }}
           >
@@ -225,8 +263,22 @@ const MainPanel = (): JSX.Element => {
           </Button>
         </Box>
       </Box>
-    {result && (
-      <>
+    {shownResult === undefined ? (
+      // Centered, greyed-out message in place of the statistics — the web
+      // counterpart of ResultsPanel.setResultString.
+      <Box sx={{ flexGrow: 1, display: 'grid', px: 2, py: 1 }}>
+        <Box sx={{ m: 'auto', textAlign: 'center', color: (theme) => theme.palette.text.disabled }}>
+          <Typography variant="body2" color="inherit">
+            {infoMessage?.title}
+          </Typography>
+          {infoMessage?.detail !== undefined && (
+            <Typography variant="body2" color="inherit">
+              {infoMessage.detail}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    ) : (
       <Box
         sx={{
           px: 2,
@@ -240,7 +292,7 @@ const MainPanel = (): JSX.Element => {
         <Table size="small">
           <TableBody>
           {METRICS.map(({ label, value }) => {
-            const formatted = value(result)
+            const formatted = value(shownResult)
             if (formatted === null) return null
             return (
               <TableRow key={label}>
@@ -256,7 +308,7 @@ const MainPanel = (): JSX.Element => {
           </TableBody>
         </Table>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
-          Analysis time (sec): {formatNumber(result.analysisTimeMs / 1000)}
+          Analysis time (sec): {formatNumber(shownResult.analysisTimeMs / 1000)}
         </Typography>
         <List
           dense
@@ -280,6 +332,9 @@ const MainPanel = (): JSX.Element => {
         ))}
         </List>
       </Box>
+    )}
+      {/* Always shown, like the Java panel's button bar — enablement, not
+          visibility, tells the user whether a chart can be plotted. */}
       <Box
         sx={{
           px: 2,
@@ -291,15 +346,21 @@ const MainPanel = (): JSX.Element => {
           backgroundColor: (theme) => theme.palette.background.default,
         }}
       >
-        <ChartButton missingColumns={degreeHistogramMissingColumns} onClick={openDegreeHistogram}>
+        <ChartButton
+          hasData={hasData}
+          missingColumns={degreeHistogramMissingColumns}
+          onClick={openDegreeHistogram}
+        >
           Node Degree Distribution
         </ChartButton>
-        <ChartButton missingColumns={betweennessScatterMissingColumns} onClick={openBetweennessScatter}>
+        <ChartButton
+          hasData={hasData}
+          missingColumns={betweennessScatterMissingColumns}
+          onClick={openBetweennessScatter}
+        >
           Betweenness by Degree
         </ChartButton>
       </Box>
-    </>
-    )}
       <AnalyzerDialog open={newAnalysis} onClose={() => setNewAnalysis(false)} />
       {plotSpec !== null && (
         <Suspense fallback={null}>
