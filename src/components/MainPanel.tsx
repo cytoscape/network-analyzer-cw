@@ -10,6 +10,7 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  Tooltip,
   Typography,
   DialogContent,
   IconButton,
@@ -93,17 +94,55 @@ const AnalyzerDialog = ({ open, onClose }: { open: boolean; onClose: () => void 
 }
 
 
-const ChartButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }): JSX.Element => {
-  return (
+/**
+ * A chart button. `missingColumns` are the node columns this chart needs that
+ * the NODES table doesn't have: while any is missing the button is disabled
+ * and a tooltip says which ones and how to get them back.
+ *
+ * Port of ResultsPanel.updateChartButton. The Java tooltip also names the
+ * interpretation to re-run with ("run a new undirected analysis"), because
+ * there `Degree` comes out of an undirected run only; here both charts' columns
+ * are written by directed and undirected analyses alike, so the hint would
+ * always be empty and is left out.
+ */
+const ChartButton = ({
+  children,
+  missingColumns,
+  onClick,
+}: {
+  children: React.ReactNode
+  missingColumns: string[]
+  onClick?: () => void
+}): JSX.Element => {
+  const button = (
     <Button
       variant="outlined"
       size="small"
       startIcon={<BarChartIcon />}
       sx={{ minWidth: 220, textTransform: 'none', borderRadius: 4, backgroundColor: (theme) => theme.palette.background.paper }}
+      disabled={missingColumns.length > 0}
       onClick={onClick}
     >
       {children}
     </Button>
+  )
+
+  if (missingColumns.length === 0) return button
+
+  const plural = missingColumns.length > 1
+  return (
+    <Tooltip
+      title={
+        <>
+          {`Requires the node column${plural ? 's' : ''} ${missingColumns.map((name) => `"${name}"`).join(' and ')}.`}
+          <br />
+          {`Run a new analysis to compute ${plural ? 'them' : 'it'}.`}
+        </>
+      }
+    >
+      {/* A disabled MUI button fires no pointer events — the tooltip needs an enabled wrapper. */}
+      <span>{button}</span>
+    </Tooltip>
   )
 }
 
@@ -114,7 +153,15 @@ const MainPanel = (): JSX.Element => {
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
-  const { plotSpec, openDegreeHistogram, openBetweennessScatter, closePlot, selectPoints } = useChartDialog(networkId)
+  const {
+    plotSpec,
+    degreeHistogramMissingColumns,
+    betweennessScatterMissingColumns,
+    openDegreeHistogram,
+    openBetweennessScatter,
+    closePlot,
+    selectPoints,
+  } = useChartDialog(networkId)
 
   if (networkId === '') {
     return (
@@ -244,10 +291,10 @@ const MainPanel = (): JSX.Element => {
           backgroundColor: (theme) => theme.palette.background.default,
         }}
       >
-        <ChartButton onClick={openDegreeHistogram}>
+        <ChartButton missingColumns={degreeHistogramMissingColumns} onClick={openDegreeHistogram}>
           Node Degree Distribution
         </ChartButton>
-        <ChartButton onClick={openBetweennessScatter}>
+        <ChartButton missingColumns={betweennessScatterMissingColumns} onClick={openBetweennessScatter}>
           Betweenness by Degree
         </ChartButton>
       </Box>

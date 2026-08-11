@@ -3,6 +3,11 @@ import { useSelectionApi } from 'cyweb/SelectionApi'
 import { useTableApi } from 'cyweb/TableApi'
 
 import { buildHistogramSpec, buildScatterSpec, PlotSpec } from '../model/plotSpecs'
+import { useNodeColumnNames } from './useNodeColumnNames'
+
+/** Node columns each chart plots; a chart is unavailable while any is missing. */
+const HISTOGRAM_COLUMNS = ['Degree']
+const SCATTER_COLUMNS = ['Degree', 'BetweennessCentrality']
 
 /**
  * State + actions behind the "Node Degree Distribution" and "Betweenness by
@@ -18,11 +23,17 @@ import { buildHistogramSpec, buildScatterSpec, PlotSpec } from '../model/plotSpe
  *
  * Both modes write a `Degree` column (networkAnalyzerColumns.ts) — total
  * degree (in+out) for directed analyses — so the charts always plot `Degree`.
+ *
+ * `*MissingColumns` are the columns a chart needs that the node table doesn't
+ * have (the user can delete them at any time); the caller disables the
+ * matching button, and explains why, whenever one is non-empty.
  */
 export function useChartDialog(
   networkId: string,
 ): {
   plotSpec: PlotSpec | null
+  degreeHistogramMissingColumns: string[]
+  betweennessScatterMissingColumns: string[]
   openDegreeHistogram: () => void
   openBetweennessScatter: () => void
   closePlot: () => void
@@ -30,6 +41,7 @@ export function useChartDialog(
 } {
   const tableApi = useTableApi()
   const selectionApi = useSelectionApi()
+  const columnNames = useNodeColumnNames(networkId)
 
   const [openPlot, setOpenPlot] = useState<{ spec: PlotSpec; nodeIds: string[] } | null>(null)
 
@@ -77,7 +89,7 @@ export function useChartDialog(
   )
 
   const openDegreeHistogram = useCallback((): void => {
-    const data = readColumns(['Degree'])
+    const data = readColumns(HISTOGRAM_COLUMNS)
     if (data === null) return
     setOpenPlot({
       spec: buildHistogramSpec('Degree', data.values[0], data.names),
@@ -86,7 +98,7 @@ export function useChartDialog(
   }, [readColumns])
 
   const openBetweennessScatter = useCallback((): void => {
-    const data = readColumns(['Degree', 'BetweennessCentrality'])
+    const data = readColumns(SCATTER_COLUMNS)
     if (data === null) return
     setOpenPlot({
       spec: buildScatterSpec('Degree', data.values[0], 'BetweennessCentrality', data.values[1], data.names),
@@ -105,5 +117,13 @@ export function useChartDialog(
     [openPlot, selectionApi, networkId],
   )
 
-  return { plotSpec: openPlot?.spec ?? null, openDegreeHistogram, openBetweennessScatter, closePlot, selectPoints }
+  return {
+    plotSpec: openPlot?.spec ?? null,
+    degreeHistogramMissingColumns: HISTOGRAM_COLUMNS.filter((name) => !columnNames.has(name)),
+    betweennessScatterMissingColumns: SCATTER_COLUMNS.filter((name) => !columnNames.has(name)),
+    openDegreeHistogram,
+    openBetweennessScatter,
+    closePlot,
+    selectPoints,
+  }
 }
