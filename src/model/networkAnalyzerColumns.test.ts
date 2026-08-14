@@ -105,15 +105,14 @@ test('directed chain (A -> B -> C): indegree/outdegree, betweenness, stress, edg
 
   assert.equal(nodeColumns.get('Indegree')!.get('A'), 0)
   assert.equal(nodeColumns.get('Outdegree')!.get('A'), 1)
-  assert.equal(nodeColumns.get('EdgeCount')!.get('A'), 1)
   assert.equal(nodeColumns.get('Indegree')!.get('B'), 1)
   assert.equal(nodeColumns.get('Outdegree')!.get('B'), 1)
-  assert.equal(nodeColumns.get('EdgeCount')!.get('B'), 2)
   assert.equal(nodeColumns.get('Indegree')!.get('C'), 1)
   assert.equal(nodeColumns.get('Outdegree')!.get('C'), 0)
 
-  // Directed mode also writes `Degree` (total degree = in + out) so the charts
-  // have the same degree column in both modes.
+  // Directed mode writes total degree (in + out) as `Degree`, the same column
+  // name the undirected branch uses, and never as `EdgeCount`.
+  assert.equal(nodeColumns.has('EdgeCount'), false)
   assert.equal(nodeColumns.get('Degree')!.get('A'), 1)
   assert.equal(nodeColumns.get('Degree')!.get('B'), 2)
   assert.equal(nodeColumns.get('Degree')!.get('C'), 1)
