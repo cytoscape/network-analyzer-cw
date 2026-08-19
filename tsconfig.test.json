@@ -1,7 +1,7 @@
 {
   // Compiles the Network Analyzer model + its tests to CommonJS under dist-test/, so they
   // can run on Node's built-in test runner (`node --test`) without extra deps.
-  // The main tsconfig.json targets ESM for the webpack/Module Federation build;
+  // The main tsconfig.json targets ESM for the Vite/Module Federation build;
   // this config is test-only.
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -18,5 +18,8 @@
   // src/hooks/useNetworkAnalyzerWorker.ts uses import.meta, which can't compile
   // to CommonJS) — none of them are imported by the test files, so restricting
   // "include" to the tests keeps them out of this compile entirely.
-  "include": ["src/model/**/*.test.ts"]
+  "include": ["src/model/**/*.test.ts"],
+  // Override the base config's exclude (it keeps *.test.ts out of the APP
+  // compile) — here the tests are exactly what we compile.
+  "exclude": []
 }

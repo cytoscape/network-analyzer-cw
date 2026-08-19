@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 
+import NetworkAnalyzerWorkerInline from '../model/networkAnalyzer.worker?worker&inline'
+
 import type { NetworkAnalyzerWorkerInput, NetworkAnalyzerWorkerOutput } from '../model/networkAnalyzer.worker'
 
 /** Rejection reason `cancel()` uses, so callers can distinguish a deliberate cancel from a real worker error. */
@@ -11,48 +13,58 @@ export class AnalysisCancelledError extends Error {
 }
 
 /**
- * Constructs the Network Analyzer worker. `new Worker(url)` can't be called
- * directly with the worker chunk's own URL — that chunk is served from this
- * remote's origin (e.g. localhost:5556), but the code constructing the
- * Worker runs inside the CW *host* page's origin (e.g. localhost:5500) once
- * Module Federation has loaded it there, and browsers reject constructing a
- * Worker directly from a cross-origin script URL ("SecurityError: Failed to
- * construct 'Worker'"). The standard workaround: wrap it in a tiny same-origin
- * Blob that does `importScripts(actualUrl)` — `importScripts()` is not
- * subject to that same restriction (the dev server's
- * `Access-Control-Allow-Origin: *` header, set in webpack.config.js's
- * devServer, covers it) — and construct the Worker from that blob's
- * (same-origin) object URL instead. This blob wrapper is why the worker must
- * run as a CLASSIC worker: `importScripts()` doesn't exist in module workers.
+ * Path of the worker module, for DEV only. Kept in a variable (not written
+ * literally inside `new URL(...)`) so Vite's asset transform does not match the
+ * pattern at build time and emit the raw .ts file as an asset; the whole dev
+ * branch is dead code in a production build anyway.
  */
-function createWorker(scriptUrl: URL): Worker {
-  const blob = new Blob([`importScripts(${JSON.stringify(scriptUrl.toString())});`], {
-    type: 'application/javascript',
-  })
-  const blobUrl = URL.createObjectURL(blob)
-  const worker = new Worker(blobUrl)
-  // Safe to revoke immediately — the browser has already started fetching
-  // the blob's content by the time the Worker constructor returns.
-  URL.revokeObjectURL(blobUrl)
-  return worker
+const DEV_WORKER_PATH = '../model/networkAnalyzer.worker.ts'
+
+/**
+ * Constructs the Network Analyzer worker — without hardcoding any origin, so
+ * the same code works wherever the app is served from.
+ *
+ * PRODUCTION: `?worker&inline` embeds the bundled worker (its import graph is
+ * pure algorithm code) into this chunk and constructs it from a Blob at
+ * runtime. A Blob worker is same-origin by construction, so it works no matter
+ * where the remote is deployed — any origin, any base path, no CORS, no URL to
+ * resolve. (The alternative, `?worker&url`, emits a root-absolute `/assets/…`
+ * URL because the SDK owns `base: '/'`, which breaks subpath deployments.)
+ *
+ * DEV: Vite serves modules unbundled, so there is nothing to inline — the
+ * inline wrapper falls back to `new Worker(<dev url>)`, and that breaks
+ * cross-origin: this app is a Module Federation remote whose modules are
+ * served from its own dev server (e.g. :5556) while the page is the host's
+ * origin (e.g. cyweb on :5500), and browsers reject constructing a Worker
+ * directly from a cross-origin script URL ("SecurityError: Failed to
+ * construct 'Worker'"). So in dev we build the worker from a tiny same-origin
+ * Blob module that `import`s the dev-served worker module — a module import
+ * may cross origins under CORS, and the dev server already sends
+ * `Access-Control-Allow-Origin: *` (the host needs it to import
+ * remoteEntry.js at all).
+ */
+function createWorker(): Worker {
+  if (import.meta.env.PROD) {
+    return new NetworkAnalyzerWorkerInline({ name: 'network-analyzer-worker' })
+  }
+
+  const workerUrl = new URL(DEV_WORKER_PATH, import.meta.url).href
+  // The revoke frees the Blob once the module graph has loaded (static imports
+  // resolve before the module body runs) — the same trick Vite's own inline
+  // worker wrapper uses.
+  const bootstrap =
+    `import ${JSON.stringify(workerUrl)};\n` + `URL.revokeObjectURL(import.meta.url);`
+  const blobUrl = URL.createObjectURL(new Blob([bootstrap], { type: 'text/javascript' }))
+  return new Worker(blobUrl, { type: 'module', name: 'network-analyzer-worker' })
 }
 
 /**
  * Manages a single Network Analyzer web worker's lifecycle. A terminated
  * worker can't be reused, so `runInWorker` creates a fresh one each call.
  *
- * Loaded as a CLASSIC worker chunk named "network-analyzer-worker" — its own
- * webpack compiler config with `target: 'webworker'` (see webpack.config.js's
- * `workerConfig`), NOT webpack's `new Worker(new URL(...))` magic-comment
- * syntax: that syntax only compiles the referenced module when written as one
- * literal inline expression, which we can't do here (the URL has to be
- * wrapped in a same-origin blob first — see `createWorker` above). It's a
- * separate compiler (not just a second entry in the main 'web'-target
- * config) so webpack-dev-server doesn't inject its HMR/live-reload client
- * into it — see workerConfig's comment in webpack.config.js for why that
- * matters. The compiler's output filename is predictable
- * (`network-analyzer-worker.mjs`, matching its entry key) precisely so it can
- * be referenced by a plain string below instead.
+ * The worker is bundled by Vite's built-in `?worker&inline` handling — no
+ * separate compiler config, no pinned output filename. See `createWorker`
+ * above for how it is constructed in production vs dev.
  */
 export function useNetworkAnalyzerWorker(): {
   runInWorker: (input: NetworkAnalyzerWorkerInput) => Promise<NetworkAnalyzerWorkerOutput>
@@ -71,18 +83,7 @@ export function useNetworkAnalyzerWorker(): {
   const runInWorker = useCallback(
     (input: NetworkAnalyzerWorkerInput): Promise<NetworkAnalyzerWorkerOutput> => {
       return new Promise((resolve, reject) => {
-        // `webpackIgnore` tells webpack to leave this `new URL()` call alone
-        // entirely at build time — without it, webpack statically parses ANY
-        // `new URL(str, import.meta.url)` call and tries to resolve `str` as
-        // a module request via its generic asset-module handling (which is
-        // what caused both the raw-.ts-copy bug and, before the entry was
-        // added, a "Module not found" build error for this exact string). We
-        // want a plain runtime URL resolved by the browser against this
-        // chunk's own base URL, pointing at the separately-compiled
-        // "network-analyzer-worker" entry (see webpack.config.js's `entry`),
-        // whose output filename is predictably `network-analyzer-worker.mjs`.
-        const scriptUrl = new URL(/* webpackIgnore: true */ 'network-analyzer-worker.mjs', import.meta.url)
-        const worker = createWorker(scriptUrl)
+        const worker = createWorker()
         workerRef.current = worker
         rejectRef.current = reject
 

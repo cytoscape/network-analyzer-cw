@@ -1,12 +1,22 @@
 import { useCallback, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
+import { CloseIcon } from './icons'
 import Plotly from 'plotly.js/dist/plotly.min'
-import PlotlyEditor from 'react-chart-editor'
+import PlotlyEditorImport from 'react-chart-editor'
 import 'react-chart-editor/lib/react-chart-editor.css'
 import type { JSX } from 'react/jsx-runtime'
 
 import { PlotSpec } from '../model/plotSpecs'
+
+/**
+ * react-chart-editor ships CommonJS with the component on `exports.default`.
+ * Depending on the bundler's interop (Vite's dev prebundle vs the production
+ * bundle), the default import arrives either as the component itself or as
+ * the whole CJS exports object with the component on `.default` — unwrap
+ * whichever we got.
+ */
+const PlotlyEditor = ((PlotlyEditorImport as { default?: unknown }).default ??
+  PlotlyEditorImport) as typeof PlotlyEditorImport
 
 /** The div plotly renders into; plotly adds its own `.on` event emitter to it. */
 type PlotlyGraphDiv = HTMLElement & {

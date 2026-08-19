@@ -32,8 +32,7 @@ import AnalyzeNetworkForm from './AnalyzeNetworkForm'
 // first chart-button click keeps the panel itself lightweight.
 const LazyPlotDialog = lazy(() => import('./PlotDialog'))
 
-import BarChartIcon from '@mui/icons-material/BarChart'
-import CloseIcon from '@mui/icons-material/Close'
+import { BarChartIcon, CloseIcon } from './icons'
 
 
 // Smallest network the analyzer accepts, as in ResultsPanel.updateButtons

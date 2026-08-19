@@ -3,11 +3,10 @@
  * invocation — no React, no `cyweb/*` imports (those need main-thread access
  * to CW's stores/API and stay in `hooks/useAnalyzeNetworkAction.ts`).
  *
- * Runs as a CLASSIC worker (see webpack.config.js's `workerChunkLoading` and
- * `optimization.splitChunks` comments for why: the Module Federation remote
- * is served from a cross-origin blob inside the CW host page, and only a
- * classic worker's `importScripts()` — not a module worker's `import()` — can
- * resolve further chunks against this remote's own origin from that context).
+ * Bundled by Vite via the `?worker&inline` import in
+ * `hooks/useNetworkAnalyzerWorker.ts` — inlined into the referencing chunk in
+ * production, served as a module in dev (see that file for the cross-origin
+ * story).
  *
  * `NetworkAnalysisResult` (primitives) and `ColumnValues`
  * (`Map<string, Map<string, ColumnValue>>`) are both natively
