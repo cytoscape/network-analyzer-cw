@@ -1,19 +1,14 @@
 import { 
   Box,
   Button,
-  Dialog,
-  DialogTitle,
   List,
   ListItem,
-  Paper,
   Table,
   TableBody,
   TableCell,
   TableRow,
   Tooltip,
   Typography,
-  DialogContent,
-  IconButton,
 } from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
 import { lazy, Suspense, useState } from 'react'
@@ -25,14 +20,14 @@ import { useChartDialog } from '../hooks/useChartDialog'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
-import AnalyzeNetworkForm from './AnalyzeNetworkForm'
+import { AnalyzerDialog } from './AnalyzerDialog'
+
+import { BarChartIcon } from './icons'
 
 // Module-scope lazy component (stable identity across renders). PlotDialog
 // pulls in plotly + react-chart-editor (a ~10 MB chunk) — deferring it to the
 // first chart-button click keeps the panel itself lightweight.
 const LazyPlotDialog = lazy(() => import('./PlotDialog'))
-
-import { BarChartIcon, CloseIcon } from './icons'
 
 
 // Smallest network the analyzer accepts, as in ResultsPanel.updateButtons
@@ -66,37 +61,6 @@ const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
   <>Node specific statistics are found in the NODES Table.</>,
   <>Edge <i>Betweenness</i> is added to the EDGES Table.</>
 ]
-
-
-const AnalyzerDialog = ({ open, onClose }: { open: boolean; onClose: () => void }): JSX.Element => {
-  return (
-    <Dialog
-      open={open}
-      maxWidth="xs"
-      fullWidth
-      onClose={onClose}
-    >
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 3,
-          py: 2,
-          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Typography variant="h6">Network Analyzer</Typography>
-        <IconButton size="small" onClick={onClose} aria-label="Close dialog">
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ pt: (theme) => `${theme.spacing(1)} !important` }}>
-        <AnalyzeNetworkForm onAnalyze={() => onClose()} />
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 
 /**
@@ -280,6 +244,7 @@ const MainPanel = (): JSX.Element => {
     ) : (
       <Box
         sx={{
+          flexGrow: 1,
           px: 2,
           py: 1,
           overflowY: 'auto',
