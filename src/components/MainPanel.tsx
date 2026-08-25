@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { useWorkspaceApi } from 'cyweb/WorkspaceApi'
 
@@ -25,6 +25,7 @@ import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
 import { useNodeColumnNames } from '../hooks/useNodeColumnNames'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import { AnalyzerDialog } from './AnalyzerDialog'
+import { getLongDoc, getShortDoc, type StatKey } from './statsDoc'
 
 import { BarChartIcon } from './icons'
 
@@ -56,21 +57,26 @@ function formatNumber(value: number): string {
 }
 
 // `value` returns null to hide a row entirely — used for centralization/heterogeneity,
-// which are undirected-only (null in directed mode).
-const METRICS: ReadonlyArray<{ label: string; value: (result: NetworkAnalysisResult) => string | null }> = [
-  { label: 'Number of nodes', value: (r) => formatNumber(r.nodeCount) },
-  { label: 'Number of edges', value: (r) => formatNumber(r.edgeCount) },
-  { label: 'Avg. number of neighbors', value: (r) => formatNumber(r.avNeighbors) },
-  { label: 'Network diameter', value: (r) => formatNumber(r.diameter) },
-  { label: 'Network radius', value: (r) => formatNumber(r.radius) },
-  { label: 'Characteristic path length', value: (r) => formatNumber(r.avgShortestPathLength) },
-  { label: 'Clustering coefficient', value: (r) => formatNumber(r.clusteringCoefficient) },
-  { label: 'Network density', value: (r) => formatNumber(r.density) },
-  { label: 'Network heterogeneity', value: (r) => (r.heterogeneity === null ? null : formatNumber(r.heterogeneity)) },
-  { label: 'Network centralization', value: (r) => (r.centralization === null ? null : formatNumber(r.centralization)) },
-  { label: 'Connected components', value: (r) => formatNumber(r.connectedComponents) },
-  { label: 'Multi-edge node pairs', value: (r) => formatNumber(r.multiEdgeNodePairs) },
-  { label: 'Number of self-loops', value: (r) => formatNumber(r.selfLoops) },
+// which are undirected-only (null in directed mode). `key` is the Java
+// statistic ID (Msgs/NetworkStats), which the descriptions are keyed by.
+const METRICS: ReadonlyArray<{
+  key: StatKey
+  label: string
+  value: (result: NetworkAnalysisResult) => string | null
+}> = [
+  { key: 'nodeCount', label: 'Number of nodes', value: (r) => formatNumber(r.nodeCount) },
+  { key: 'edgeCount', label: 'Number of edges', value: (r) => formatNumber(r.edgeCount) },
+  { key: 'avNeighbors', label: 'Avg. number of neighbors', value: (r) => formatNumber(r.avNeighbors) },
+  { key: 'diameter', label: 'Network diameter', value: (r) => formatNumber(r.diameter) },
+  { key: 'radius', label: 'Network radius', value: (r) => formatNumber(r.radius) },
+  { key: 'avSpl', label: 'Characteristic path length', value: (r) => formatNumber(r.avgShortestPathLength) },
+  { key: 'cc', label: 'Clustering coefficient', value: (r) => formatNumber(r.clusteringCoefficient) },
+  { key: 'density', label: 'Network density', value: (r) => formatNumber(r.density) },
+  { key: 'heterogeneity', label: 'Network heterogeneity', value: (r) => (r.heterogeneity === null ? null : formatNumber(r.heterogeneity)) },
+  { key: 'centralization', label: 'Network centralization', value: (r) => (r.centralization === null ? null : formatNumber(r.centralization)) },
+  { key: 'ncc', label: 'Connected components', value: (r) => formatNumber(r.connectedComponents) },
+  { key: 'mnp', label: 'Multi-edge node pairs', value: (r) => formatNumber(r.multiEdgeNodePairs) },
+  { key: 'nsl', label: 'Number of self-loops', value: (r) => formatNumber(r.selfLoops) },
 ]
 
 const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
@@ -144,9 +150,19 @@ const MainPanel = (): JSX.Element => {
   // ResultsPanel.createDegreeChoicePanel.
   const [degreeChoice, setDegreeChoice] = useState(OUT_DEGREE_COLUMN)
 
+  // The statistic whose description shows under the table; clicking its row
+  // again puts the description away.
+  const [selectedStat, setSelectedStat] = useState<StatKey | null>(null)
+
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
+
+  // The Java panel rebuilds the table — selection cleared — for every new
+  // result, and a selection should not carry over to another network either.
+  useEffect(() => {
+    setSelectedStat(null)
+  }, [networkId, result])
   const { nodeCount, edgeCount } = useNetworkElementCounts(networkId)
   const columnNames = useNodeColumnNames(networkId)
 
@@ -292,18 +308,28 @@ const MainPanel = (): JSX.Element => {
         </Typography>
         <Table size="small">
           <TableBody>
-          {METRICS.map(({ label, value }) => {
+          {METRICS.map(({ key, label, value }) => {
             const formatted = value(shownResult)
             if (formatted === null) return null
             return (
-              <TableRow key={label}>
-                <TableCell sx={{ color: 'text.secondary', pl: 0 }}>
-                  {label}
-                </TableCell>
-                <TableCell align="right" sx={{ pr: 0 }}>
-                  {formatted}
-                </TableCell>
-              </TableRow>
+              // The whole row answers for the statistic, so hovering the
+              // value shows the tooltip too, and clicking anywhere selects
+              // it (ResultsPanel.createStatsTable).
+              <Tooltip key={key} title={getShortDoc(key)}>
+                <TableRow
+                  hover
+                  selected={selectedStat === key}
+                  onClick={() => setSelectedStat((prev) => (prev === key ? null : key))}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell sx={{ color: 'text.secondary', pl: 0 }}>
+                    {label}
+                  </TableCell>
+                  <TableCell align="right" sx={{ pr: 0 }}>
+                    {formatted}
+                  </TableCell>
+                </TableRow>
+              </Tooltip>
             )
           })}
           </TableBody>
@@ -311,6 +337,30 @@ const MainPanel = (): JSX.Element => {
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'right' }}>
           Analysis time (sec): {formatNumber(shownResult.analysisTimeMs / 1000)}
         </Typography>
+        {/* Description of the selected statistic — the web counterpart of
+            ResultsPanel's DescriptionPanel: always shown, with a hint while
+            nothing is selected. A few descriptions change with the
+            interpretation, which the result records (getLongDoc). */}
+        <Box sx={{ mt: 1, p: 1.5, backgroundColor: (theme) => theme.palette.background.default, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+          {selectedStat === null ? (
+            <Typography
+              variant="body2"
+              color="text.disabled"
+              sx={{ fontStyle: 'italic', textAlign: 'center', py: 1 }}
+            >
+              Select a statistic above to see its description.
+            </Typography>
+          ) : (
+            <>
+              <Typography variant="body2" color="text.secondary" fontWeight="bold" sx={{ display: 'block', mb: 1 }}>
+                {METRICS.find(({ key }) => key === selectedStat)?.label}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {getLongDoc(selectedStat, shownResult.directed)}
+              </Typography>
+            </>
+          )}
+        </Box>
         <List
           dense
           sx={{
