@@ -1,8 +1,11 @@
-import { 
+import {
   Box,
   Button,
+  FormControlLabel,
   List,
   ListItem,
+  Radio,
+  RadioGroup,
   Table,
   TableBody,
   TableCell,
@@ -19,6 +22,7 @@ import { useAnalysisResult } from '../hooks/analysisResultStore'
 import { useChartDialog } from '../hooks/useChartDialog'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
+import { useNodeColumnNames } from '../hooks/useNodeColumnNames'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import { AnalyzerDialog } from './AnalyzerDialog'
 
@@ -34,6 +38,18 @@ const LazyPlotDialog = lazy(() => import('./PlotDialog'))
 // ("Network Too Small<br>(must have at least 4 nodes and 1 edge)").
 const MIN_NODE_COUNT = 4
 const MIN_EDGE_COUNT = 1
+
+// Degree column the charts use for undirected results, where there is nothing
+// to choose, and the two a directed analysis lets the user pick between
+// (ResultsPanel's TOTAL_DEGREE_COLUMN / IN_DEGREE_COLUMN / OUT_DEGREE_COLUMN).
+const TOTAL_DEGREE_COLUMN = 'Degree'
+const IN_DEGREE_COLUMN = 'Indegree'
+const OUT_DEGREE_COLUMN = 'Outdegree'
+
+// Columns only a directed analysis produces, used to recognize directed
+// results on a network whose statistics are not in this session
+// (ResultsPanel.DIRECTED_ONLY_COLUMNS).
+const DIRECTED_ONLY_COLUMNS = [IN_DEGREE_COLUMN, OUT_DEGREE_COLUMN]
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(3)
@@ -69,11 +85,12 @@ const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
  * while a column is missing, a tooltip says which ones and how to get them
  * back.
  *
- * Port of ResultsPanel.updateChartButton. The Java tooltip also names the
- * interpretation to re-run with ("run a new undirected analysis"), because
- * there `Degree` comes out of an undirected run only; here both charts' columns
- * are written by directed and undirected analyses alike, so the hint would
- * always be empty and is left out.
+ * Port of ResultsPanel.updateChartButton, including the interpretation hint
+ * of getInterpretationHint: when only a directed analysis can produce a
+ * missing column (`Indegree`/`Outdegree`), the tooltip says so, since an
+ * unqualified "run a new analysis" would let the user re-run the undirected
+ * one that cannot create it. Only the directed hint can apply here — every
+ * other chart column, `Degree` included, is written by both interpretations.
  */
 const ChartButton = ({
   children,
@@ -102,13 +119,14 @@ const ChartButton = ({
   if (!hasData || missingColumns.length === 0) return button
 
   const plural = missingColumns.length > 1
+  const hint = missingColumns.some((name) => DIRECTED_ONLY_COLUMNS.includes(name)) ? 'directed ' : ''
   return (
     <Tooltip
       title={
         <>
           {`Requires the node column${plural ? 's' : ''} ${missingColumns.map((name) => `"${name}"`).join(' and ')}.`}
           <br />
-          {`Run a new analysis to compute ${plural ? 'them' : 'it'}.`}
+          {`Run a new ${hint}analysis to compute ${plural ? 'them' : 'it'}.`}
         </>
       }
     >
@@ -122,10 +140,29 @@ const ChartButton = ({
 const MainPanel = (): JSX.Element => {
   const [newAnalysis, setNewAnalysis] = useState(false)
 
+  // The user's pick for directed results; Outdegree starts selected, as in
+  // ResultsPanel.createDegreeChoicePanel.
+  const [degreeChoice, setDegreeChoice] = useState(OUT_DEGREE_COLUMN)
+
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
   const result = useAnalysisResult(networkId)
   const { nodeCount, edgeCount } = useNetworkElementCounts(networkId)
+  const columnNames = useNodeColumnNames(networkId)
+
+  // Whether the results on the current network come from a directed analysis,
+  // which is what offers the degree choice. The stored result says so outright
+  // and is the authority; without one — a network imported with the columns of
+  // an analysis run elsewhere — the directed-only columns are the evidence
+  // (ResultsPanel.isDirectedResult).
+  const directedResults =
+    result !== undefined ? result.directed : DIRECTED_ONLY_COLUMNS.every((name) => columnNames.has(name))
+
+  // The degree column the charts plot: the user's pick for directed results,
+  // else Degree (ResultsPanel.getDegreeColumn). It changes both what the
+  // buttons plot and which column has to be there for them to be enabled.
+  const degreeColumn = directedResults ? degreeChoice : TOTAL_DEGREE_COLUMN
+
   const {
     plotSpec,
     degreeHistogramMissingColumns,
@@ -134,7 +171,7 @@ const MainPanel = (): JSX.Element => {
     openBetweennessScatter,
     closePlot,
     selectPoints,
-  } = useChartDialog(networkId)
+  } = useChartDialog(networkId, degreeColumn)
 
   if (networkId === '') {
     return (
@@ -310,19 +347,36 @@ const MainPanel = (): JSX.Element => {
           backgroundColor: (theme) => theme.palette.background.default,
         }}
       >
+        {/* A directed analysis computes in-degree and out-degree separately,
+            and either can be the one worth plotting, so the user picks. Only
+            shown for directed results: an undirected analysis has the single
+            Degree column and nothing to choose between
+            (ResultsPanel.createDegreeChoicePanel). */}
+        {directedResults && (
+          <RadioGroup row value={degreeChoice} onChange={(event) => setDegreeChoice(event.target.value)}>
+            {[IN_DEGREE_COLUMN, OUT_DEGREE_COLUMN].map((column) => (
+              <FormControlLabel
+                key={column}
+                value={column}
+                control={<Radio size="small" />}
+                label={<Typography variant="body2">{column}</Typography>}
+              />
+            ))}
+          </RadioGroup>
+        )}
         <ChartButton
           hasData={hasData}
           missingColumns={degreeHistogramMissingColumns}
           onClick={openDegreeHistogram}
         >
-          Node Degree Distribution
+          Node {degreeColumn} Distribution
         </ChartButton>
         <ChartButton
           hasData={hasData}
           missingColumns={betweennessScatterMissingColumns}
           onClick={openBetweennessScatter}
         >
-          Betweenness by Degree
+          Betweenness by {degreeColumn}
         </ChartButton>
       </Box>
       <AnalyzerDialog open={newAnalysis} onClose={() => setNewAnalysis(false)} />
