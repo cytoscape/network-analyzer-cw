@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   FormControlLabel,
+  IconButton,
   List,
   ListItem,
   Radio,
@@ -27,7 +28,7 @@ import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import { AnalyzerDialog } from './AnalyzerDialog'
 import { getLongDoc, getShortDoc, type StatKey } from './statsDoc'
 
-import { BarChartIcon } from './icons'
+import { BarChartIcon, ContentCopyIcon } from './icons'
 
 // Module-scope lazy component (stable identity across renders). PlotDialog
 // pulls in plotly + react-chart-editor (a ~10 MB chunk) — deferring it to the
@@ -78,6 +79,20 @@ const METRICS: ReadonlyArray<{
   { key: 'mnp', label: 'Multi-edge node pairs', value: (r) => formatNumber(r.multiEdgeNodePairs) },
   { key: 'nsl', label: 'Number of self-loops', value: (r) => formatNumber(r.selfLoops) },
 ]
+
+// Puts the whole statistics table on the clipboard, for when the user does
+// not want to select the rows by hand: the same tab-separated name/value
+// lines as ResultsPanel.copyToClipboard, in row order.
+function copyStatistics(result: NetworkAnalysisResult): void {
+  const text = METRICS.flatMap(({ label, value }) => {
+    const formatted = value(result)
+    return formatted === null ? [] : [`${label}\t${formatted}\n`]
+  }).join('')
+
+  navigator.clipboard.writeText(text).catch((error) => {
+    console.warn('Could not copy the statistics to the clipboard:', error)
+  })
+}
 
 const EXTRA_INFO: ReadonlyArray<JSX.Element> = [
   <>Node specific statistics are found in the NODES Table.</>,
@@ -303,9 +318,16 @@ const MainPanel = (): JSX.Element => {
           overflowY: 'auto',
         }}
       >
-        <Typography variant="overline" color="text.primary" fontWeight="bold" sx={{ mb: 1, display: 'block' }}>
-          Summary Statistics:
-        </Typography>
+        <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="overline" color="text.primary" fontWeight="bold">
+            Summary Statistics:
+          </Typography>
+          <Tooltip title="Copy to clipboard">
+            <IconButton size="small" onClick={() => copyStatistics(shownResult)}>
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
         <Table size="small">
           <TableBody>
           {METRICS.map(({ key, label, value }) => {
