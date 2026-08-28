@@ -37,18 +37,24 @@ export const NetworkAnalyzerApp: CyAppWithLifecycle = {
       slot: 'apps-menu',
       id: 'action',
       component: lazy(() => import('./components/AppMenuItem')),
-      // NOT `closeOnAction: true` — that closes the dropdown on ANY click
-      // inside this menu item (host wraps it in an onClick that calls
-      // `handleClose` via `queueMicrotask`, then the dropdown's exit
-      // transition unmounts this subtree once it finishes). "Analyze
-      // Network" kicks off an async Web Worker run that can easily outlast
-      // that transition, and an unmount mid-run silently kills the worker
-      // (via useNetworkAnalyzerWorker's cleanup effect) with no error and no
-      // result — confirmed as the cause of analyses silently vanishing when
-      // triggered from this menu. Instead, AppMenuItem calls `handleClose`
-      // itself, but only once the analysis has genuinely finished (see
-      // AnalyzeNetworkForm's `onAnalyze` callback).
-      closeOnAction: false,
+      // The click opens the 'analyzer' modal below, which the HOST renders
+      // outside the dropdown's subtree — so the dropdown can close (and
+      // unmount this item) immediately without killing the analysis. This
+      // used to require `closeOnAction: false` plus a manual handleClose,
+      // back when the dialog (and its Web Worker) lived inside this item's
+      // subtree and a dropdown close silently killed an in-flight run.
+      closeOnAction: true,
+    },
+    {
+      // The "Analyze Network" form, opened via openModal('analyzer') from
+      // both the apps-menu item and the panel's "New Analysis..." button.
+      // The host renders it in its own dialog shell, so it outlives both
+      // launchers.
+      slot: 'modal-launcher',
+      id: 'analyzer',
+      maxWidth: 'xs',
+      fullWidth: true,
+      component: lazy(() => import('./components/AnalyzerModal')),
     },
     {
       slot: 'right-panel',

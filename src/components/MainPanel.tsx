@@ -17,6 +17,7 @@ import {
 import type { JSX } from 'react/jsx-runtime'
 import { lazy, Suspense, useEffect, useState } from 'react'
 
+import { useAppContext } from 'cyweb/AppIdContext'
 import { useWorkspaceApi } from 'cyweb/WorkspaceApi'
 
 import { useAnalysisResult } from '../hooks/analysisResultStore'
@@ -25,7 +26,6 @@ import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
 import { useNodeColumnNames } from '../hooks/useNodeColumnNames'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
-import { AnalyzerDialog } from './AnalyzerDialog'
 import { getLongDoc, getShortDoc, type StatKey } from './statsDoc'
 
 import { BarChartIcon, ContentCopyIcon } from './icons'
@@ -159,7 +159,9 @@ const ChartButton = ({
 
 
 const MainPanel = (): JSX.Element => {
-  const [newAnalysis, setNewAnalysis] = useState(false)
+  // The "New Analysis..." form is the host-rendered 'analyzer' modal
+  // (modal-launcher slot) — the same one the apps-menu item opens.
+  const appContext = useAppContext()
 
   // The user's pick for directed results; Outdegree starts selected, as in
   // ResultsPanel.createDegreeChoicePanel.
@@ -287,7 +289,7 @@ const MainPanel = (): JSX.Element => {
             variant="outlined"
             size="small"
             disabled={tooSmall}
-            onClick={() => setNewAnalysis(true)}
+            onClick={() => appContext?.apis.resource.openModal('analyzer')}
             sx={{ flexShrink: 0, borderRadius: 4, textTransform: 'none', backgroundColor: (theme) => theme.palette.background.paper }}
           >
             New Analysis...
@@ -451,7 +453,6 @@ const MainPanel = (): JSX.Element => {
           Betweenness by {degreeColumn}
         </ChartButton>
       </Box>
-      <AnalyzerDialog open={newAnalysis} onClose={() => setNewAnalysis(false)} />
       {plotSpec !== null && (
         <Suspense fallback={null}>
           <LazyPlotDialog open onClose={closePlot} spec={plotSpec} onSelectPoints={selectPoints} />
