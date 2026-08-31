@@ -44,7 +44,7 @@
     "ModalHostProps, openModal) are not in the published 1.0.0-beta.3 — run",
     "`npm run build:api-types` in cytoscape-web (Node 24) before",
     "installing/typechecking here. Restore a semver range once",
-    "1.0.0-beta.5 is published."
+    "1.0.0-beta.4 is published."
   ],
   "devDependencies": {
     "@cytoscape-web/api-types": "file:../cytoscape-web/packages/api-types",
