@@ -22,6 +22,8 @@ import { lazy } from 'react'
 import { AppContext, CyAppWithLifecycle } from 'cyweb/ApiTypes'
 import { description, displayName, id, version } from 'virtual:cyweb-app-meta'
 
+import { LOGO_ICON_URI } from './components/icons'
+
 export const NetworkAnalyzerApp: CyAppWithLifecycle = {
   id, // the Module Federation container name, from `cyweb.id` in package.json
   name: displayName,
@@ -34,16 +36,22 @@ export const NetworkAnalyzerApp: CyAppWithLifecycle = {
   // automatically — no mount() needed for these.
   resources: [
     {
+      // Plain data: the HOST renders the menu row (label, icon, tooltip) so
+      // every app's entry looks the same. No component crosses the boundary.
       slot: 'apps-menu',
       id: 'action',
-      component: lazy(() => import('./components/AppMenuItem')),
-      // The click opens the 'analyzer' modal below, which the HOST renders
-      // outside the dropdown's subtree — so the dropdown can close (and
-      // unmount this item) immediately without killing the analysis. This
-      // used to require `closeOnAction: false` plus a manual handleClose,
-      // back when the dialog (and its Web Worker) lived inside this item's
-      // subtree and a dropdown close silently killed an in-flight run.
-      closeOnAction: true,
+      label: 'Analyze Network',
+      tooltip: 'Calculates degree, centrality, clustering and more',
+      icon: LOGO_ICON_URI,
+      // Greyed out until a network is loaded — there is nothing to analyze.
+      requires: { network: true },
+      // The host closes the dropdown, then calls this with the per-app API
+      // object. The click opens the 'analyzer' modal below, which the HOST
+      // renders in its own dialog shell — outside the dropdown — so the form
+      // and any analysis Worker it starts keep running after the menu closes.
+      onClick: (apis) => {
+        apis.resource.openModal('analyzer')
+      },
     },
     {
       // The "Analyze Network" form, opened via openModal('analyzer') from

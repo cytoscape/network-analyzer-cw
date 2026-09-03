@@ -6,7 +6,7 @@ import AnalyzeNetworkForm from './AnalyzeNetworkForm'
 /**
  * The "Analyze Network" modal, registered in the host's 'modal-launcher'
  * slot (see NetworkAnalyzerApp.tsx) and opened via openModal('analyzer').
- * The host owns the Dialog shell — sizing, inert backdrop/Escape, and a
+ * The host owns the Dialog shell — sizing, an inert backdrop, Escape, and a
  * structural Close "X" — so this renders only the dialog contents.
  * `onAnalyze` fires once a run genuinely completes (not on click, not on
  * cancel), which is when the modal should go away.
