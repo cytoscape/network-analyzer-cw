@@ -4,6 +4,16 @@ import { defineCyWebApp } from '@cytoscape-web/app-runtime/vite'
 
 const local = (path: string): string => fileURLToPath(new URL(path, import.meta.url))
 
+// `engines` only gates npm install (with engine-strict); a build on an old
+// Node still runs. Fail it here instead.
+const nodeMajor = Number(process.versions.node.split('.')[0])
+if (nodeMajor < 24) {
+  throw new Error(
+    `This project requires Node >= 24 (found ${process.versions.node}). ` +
+      `Run \`nvm use\` (see .nvmrc).`,
+  )
+}
+
 export default defineCyWebApp(import.meta.url, {
   vite: {
     // react-chart-editor's dependency tree (draft-js and friends) references
