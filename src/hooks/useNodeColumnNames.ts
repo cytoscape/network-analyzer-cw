@@ -3,6 +3,18 @@ import { useCyWebEvent } from 'cyweb/EventBus'
 import { useTableApi } from 'cyweb/TableApi'
 
 /**
+ * How often to look again for a network whose tables the host has not loaded
+ * yet (see `useNodeColumnNames`). One synchronous store lookup per attempt,
+ * so a short interval costs nothing noticeable.
+ */
+const NOT_LOADED_RETRY_MS = 250
+
+/** `getColumns` when the network's tables are not in the host's store. */
+const NETWORK_NOT_FOUND = 'APP1'
+
+const EMPTY: ReadonlySet<string> = new Set()
+
+/**
  * Names of the columns currently in `networkId`'s NODES table, kept in sync
  * with CW.
  *
@@ -14,38 +26,68 @@ import { useTableApi } from 'cyweb/TableApi'
  *
  * Only the schema is fetched (`getColumns`), never the rows, so this stays
  * cheap on large networks.
+ *
+ * NOT-YET-LOADED NETWORKS. After a page reload the host loads a network's
+ * tables lazily, the first time it becomes current: `network:switched` fires
+ * as soon as the current id changes, and the tables land in the store only
+ * once the async load (IndexedDB or NDEx) completes. In that gap `getColumns`
+ * fails with `APP1 NETWORK_NOT_FOUND` — and the host's `data:changed` bridge
+ * deliberately skips a network whose tables were absent before, so the load
+ * itself fires no event. Without a second look the set would stay empty until
+ * the next switch, with every chart button disabled. So a not-found read is
+ * retried on a timer until the tables are there, or the network changes.
  */
 export function useNodeColumnNames(networkId: string): ReadonlySet<string> {
   const tableApi = useTableApi()
-  const [columnNames, setColumnNames] = useState<ReadonlySet<string>>(() => new Set())
+  const [columnNames, setColumnNames] = useState<ReadonlySet<string>>(EMPTY)
 
-  const refresh = useCallback(
-    (id: string): void => {
-      if (id === '') {
-        setColumnNames(new Set())
-        return
-      }
+  /**
+   * One read of the schema. `'not-loaded'` is the host's "no tables for this
+   * network (yet)" answer; any other failure is logged and reads as no columns.
+   */
+  const readColumnNames = useCallback(
+    (id: string): ReadonlySet<string> | 'not-loaded' => {
+      if (id === '') return EMPTY
       const result = tableApi.getColumns(id, 'node')
-      if (!result.success) {
-        console.warn('Could not read the node table columns:', result.error.message)
-        setColumnNames(new Set())
-        return
+      if (result.success) {
+        return new Set(result.data.columns.map((column) => column.name))
       }
-      setColumnNames(new Set(result.data.columns.map((column) => column.name)))
+      if (result.error.code === NETWORK_NOT_FOUND) return 'not-loaded'
+      console.warn('Could not read the node table columns:', result.error.message)
+      return EMPTY
     },
     [tableApi],
   )
 
   useEffect(() => {
-    refresh(networkId)
-  }, [refresh, networkId])
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const attempt = (): void => {
+      timer = null
+      const names = readColumnNames(networkId)
+      if (names === 'not-loaded') {
+        setColumnNames(EMPTY)
+        timer = setTimeout(attempt, NOT_LOADED_RETRY_MS)
+        return
+      }
+      setColumnNames(names)
+    }
+    attempt()
+
+    // A pending retry belongs to this network; the next one starts its own.
+    return () => {
+      if (timer !== null) clearTimeout(timer)
+    }
+  }, [readColumnNames, networkId])
 
   // `useCyWebEvent` holds the handler in a ref, so this inline closure always
-  // sees the current `networkId` without re-subscribing.
+  // sees the current `networkId` without re-subscribing. No retry needed here:
+  // a table that just reported a schema change is loaded by definition.
   useCyWebEvent('data:changed', ({ networkId: changedNetworkId, tableType, addedColumns, removedColumns }) => {
     if (tableType !== 'node' || changedNetworkId !== networkId) return
     if (addedColumns.length === 0 && removedColumns.length === 0) return
-    refresh(networkId)
+    const names = readColumnNames(networkId)
+    setColumnNames(names === 'not-loaded' ? EMPTY : names)
   })
 
   return columnNames
