@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@mui/material'
 import type { JSX } from 'react/jsx-runtime'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react'
 
 import { useAppContext } from 'cyweb/AppIdContext'
 import { useWorkspaceApi } from 'cyweb/WorkspaceApi'
@@ -25,6 +25,7 @@ import { useChartDialog } from '../hooks/useChartDialog'
 import { useCurrentNetworkId } from '../hooks/useCurrentNetworkId'
 import { useNetworkElementCounts } from '../hooks/useNetworkElementCounts'
 import { useNodeColumnNames } from '../hooks/useNodeColumnNames'
+import { hydrateAnalysisResult } from '../model/analysisAppData'
 import { NetworkAnalysisResult } from '../model/networkAnalyzerTypes'
 import { getLongDoc, getShortDoc, type StatKey } from './statsDoc'
 
@@ -173,6 +174,26 @@ const MainPanel = (): JSX.Element => {
 
   const workspaceApi = useWorkspaceApi()
   const networkId = useCurrentNetworkId()
+
+  // A result stored through the host's per-app storage (a reload, or the same
+  // workspace in another tab) is read in on the network's first sight here:
+  // at mount for the network already current, and on every switch, since the
+  // host keeps this panel mounted across switches. A no-op after the first
+  // time, so a result computed since is never overwritten.
+  //
+  // A layout effect, not a plain one: the store change it makes re-renders
+  // the panel before the browser paints, so a restored result never flashes
+  // "No Statistics Found" first. try/catch: a storage or decode failure must
+  // not take the panel down with it — the host's error boundary would replace
+  // the whole panel with "Plugin unavailable", which also hides the cause.
+  useLayoutEffect(() => {
+    try {
+      hydrateAnalysisResult(networkId)
+    } catch (e) {
+      console.error('Failed to restore the stored analysis result:', e)
+    }
+  }, [networkId])
+
   const result = useAnalysisResult(networkId)
 
   // The Java panel rebuilds the table — selection cleared — for every new
