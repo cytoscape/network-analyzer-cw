@@ -24,6 +24,7 @@ import { description, displayName, id, version } from 'virtual:cyweb-app-meta'
 
 import { LOGO_ICON_URI } from './components/icons'
 import { setAppDataApi } from './model/analysisAppData'
+import { RESULTS_PANEL_ID } from './model/resultsPanel'
 
 export const NetworkAnalyzerApp: CyAppWithLifecycle = {
   id, // the Module Federation container name, from `cyweb.id` in package.json
@@ -67,7 +68,8 @@ export const NetworkAnalyzerApp: CyAppWithLifecycle = {
     },
     {
       slot: 'right-panel',
-      id: 'NetworkAnalyzerPanel',
+      // Shared with showResultsPanel(), which asks the host to select this tab.
+      id: RESULTS_PANEL_ID,
       title: 'Network Analyzer', // Tab title shown in the right panel.
       component: lazy(() => import('./components/MainPanel')),
     },
