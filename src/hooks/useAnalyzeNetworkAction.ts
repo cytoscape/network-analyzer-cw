@@ -10,24 +10,34 @@ import { AnalysisCancelledError, useNetworkAnalyzerWorker } from './useNetworkAn
 
 export type AnalyzeStatus = 'idle' | 'analyzing' | 'saving'
 
-/** IsSingleNode is the only boolean column — everything else is numeric. */
-const BOOLEAN_COLUMNS = new Set(['IsSingleNode'])
-
 function writeColumns(
   tableApi: ReturnType<typeof useTableApi>,
   networkId: string,
   tableType: 'node' | 'edge',
   columns: ColumnValues,
 ): void {
+  // Column types that aren't Double, matching Java's AttributeSetup.java.
+  // Stress is Long because shortest-path counts can overflow 32 bits.
+  //
+  // Built here, not at module level: `ValueTypeName` comes from the host
+  // remote, and in dev reading it before the remote has loaded throws a
+  // Promise. At module level that fails this module's evaluation, and
+  // React.lazy turns the thrown Promise into a Suspense spinner that never
+  // ends. Never read a `cyweb/*` value at module top level.
+  const columnTypes: ReadonlyMap<string, ValueTypeName> = new Map([
+    ['IsSingleNode', ValueTypeName.Boolean],
+    ['Degree', ValueTypeName.Integer],
+    ['Indegree', ValueTypeName.Integer],
+    ['Outdegree', ValueTypeName.Integer],
+    ['Eccentricity', ValueTypeName.Integer],
+    ['SelfLoops', ValueTypeName.Integer],
+    ['PartnerOfMultiEdgedNodePairs', ValueTypeName.Integer],
+    ['Stress', ValueTypeName.Long],
+  ])
+
   for (const [columnName, values] of columns) {
-    const isBoolean = BOOLEAN_COLUMNS.has(columnName)
-    tableApi.createColumn(
-      networkId,
-      tableType,
-      columnName,
-      isBoolean ? ValueTypeName.Boolean : ValueTypeName.Double,
-      isBoolean ? false : 0,
-    )
+    const type = columnTypes.get(columnName) ?? ValueTypeName.Double
+    tableApi.createColumn(networkId, tableType, columnName, type, type === ValueTypeName.Boolean ? false : 0)
     tableApi.setValues(
       networkId,
       tableType,
