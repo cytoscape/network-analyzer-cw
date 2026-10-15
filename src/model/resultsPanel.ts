@@ -8,18 +8,10 @@
  * tab is selected, a new user has no cue that the run produced anything.
  */
 
+import type { PanelApi } from '@cytoscape-web/api-types'
+
 /** The id the results tab is registered with in the 'right-panel' slot. */
 export const RESULTS_PANEL_ID = 'NetworkAnalyzerPanel'
-
-/**
- * The slice of the host's Panel API this app uses. Declared here because
- * `panel` is newer than the `@cytoscape-web/api-types` release this app
- * compiles against (1.0.0-beta.4) — drop it for the package's own `PanelApi`
- * once a release that has it is adopted.
- */
-interface PanelApiLike {
-  open(panel: 'left' | 'right' | 'bottom', tabId?: string): unknown
-}
 
 /**
  * Open the host's right panel on the results tab. Returns whether the host
@@ -28,7 +20,7 @@ interface PanelApiLike {
  * not brought forward.
  */
 export function showResultsPanel(apis: unknown): boolean {
-  const panel = (apis as { panel?: PanelApiLike } | null | undefined)?.panel
+  const panel = (apis as { panel?: PanelApi } | null | undefined)?.panel
   if (typeof panel?.open !== 'function') return false
   panel.open('right', RESULTS_PANEL_ID)
   return true
