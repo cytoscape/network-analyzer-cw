@@ -70,7 +70,7 @@ export const NetworkAnalyzerApp: CyAppWithLifecycle = {
       slot: 'right-panel',
       // Shared with showResultsPanel(), which asks the host to select this tab.
       id: RESULTS_PANEL_ID,
-      title: 'Network Analyzer', // Tab title shown in the right panel.
+      title: 'Analyzer', // Tab title shown in the right panel.
       component: lazy(() => import('./components/MainPanel')),
     },
   ],

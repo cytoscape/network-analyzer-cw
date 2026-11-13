@@ -47,7 +47,7 @@ function writeColumns(
 }
 
 /**
- * Returns the Network Analyzer trigger + its live status, shared by the Apps
+ * Returns the NetworkAnalyzer trigger + its live status, shared by the Apps
  * menu form and the results panel form so both behave identically.
  *
  * Fetches nodes/edges via `elementApi` on the main thread (fast, not the
@@ -88,7 +88,7 @@ export function useAnalyzeNetworkAction(): {
           writeColumns(tableApi, networkId, 'edge', edgeColumns)
 
           const wallClockMs = performance.now() - wallClockStart
-          console.log(`Network Analyzer — Summary Statistics (${directed ? 'directed' : 'undirected'})`)
+          console.log(`NetworkAnalyzer — Summary Statistics (${directed ? 'directed' : 'undirected'})`)
           console.table(result)
           console.log(
             `Analysis: ${result.analysisTimeMs.toFixed(2)} ms · Total (fetch + analysis): ${wallClockMs.toFixed(2)} ms`,

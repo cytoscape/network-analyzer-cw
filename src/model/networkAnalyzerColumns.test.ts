@@ -1,5 +1,5 @@
 /**
- * Unit tests for the per-node/per-edge Network Analyzer table columns.
+ * Unit tests for the per-node/per-edge NetworkAnalyzer table columns.
  * See networkAnalyzerTypes.ts for attribution.
  *
  * Expected betweenness/stress values are worked out by hand via Brandes'

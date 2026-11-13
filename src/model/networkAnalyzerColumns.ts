@@ -1,5 +1,5 @@
 /**
- * Per-node/per-edge Network Analyzer metrics, written as table columns.
+ * Per-node/per-edge NetworkAnalyzer metrics, written as table columns.
  * See networkAnalyzerTypes.ts for attribution and scope.
  *
  * Unlike the summary stats (networkAnalyzer.ts), which restrict undirected
@@ -112,7 +112,7 @@ function setColumn(columns: ColumnValues, name: string, id: string, value: Colum
 }
 
 /**
- * Computes every per-node/per-edge Network Analyzer table column for the
+ * Computes every per-node/per-edge NetworkAnalyzer table column for the
  * given graph. `edges` (with element ids) are only needed to map the
  * per-node-pair edge betweenness value back onto literal edge ids.
  */

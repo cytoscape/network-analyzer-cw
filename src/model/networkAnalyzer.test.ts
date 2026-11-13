@@ -1,5 +1,5 @@
 /**
- * Unit tests for the Network Analyzer "Summary Statistics" port.
+ * Unit tests for the NetworkAnalyzer "Summary Statistics" port.
  * See networkAnalyzerTypes.ts for attribution.
  *
  * Uses Node's built-in test runner (no extra dependencies), same convention

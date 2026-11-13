@@ -1,5 +1,5 @@
 /**
- * Graph construction and traversal helpers for the Network Analyzer port.
+ * Graph construction and traversal helpers for the NetworkAnalyzer port.
  * See networkAnalyzerTypes.ts for attribution.
  *
  * Uses integer-indexed CSR (Compressed Sparse Row) typed arrays for the hot

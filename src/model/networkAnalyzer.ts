@@ -1,5 +1,5 @@
 /**
- * Network Analyzer "Summary Statistics" — scalar network-level statistics.
+ * NetworkAnalyzer "Summary Statistics" — scalar network-level statistics.
  * See networkAnalyzerTypes.ts for attribution and scope notes.
  *
  * Formulas mirror UndirNetworkAnalyzer.computeAll() / DirNetworkAnalyzer.computeAll()
@@ -200,7 +200,7 @@ export interface PrecomputedAnalysis {
 }
 
 /**
- * Runs the Network Analyzer "Summary Statistics" computation over the given
+ * Runs the NetworkAnalyzer "Summary Statistics" computation over the given
  * network elements. `edges` provide raw endpoints only — by default the graph
  * and its BFS pass are (re)built from scratch; pass `precomputed` to reuse
  * work already done by a caller that also needs per-node/edge table columns.

@@ -1,5 +1,5 @@
 /**
- * Web Worker entry point for the Network Analyzer pipeline. Pure algorithm
+ * Web Worker entry point for the NetworkAnalyzer pipeline. Pure algorithm
  * invocation — no React, no `cyweb/*` imports (those need main-thread access
  * to CW's stores/API and stay in `hooks/useAnalyzeNetworkAction.ts`).
  *

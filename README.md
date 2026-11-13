@@ -1,6 +1,6 @@
-# Network Analyzer App — Cytoscape Web
+# NetworkAnalyzer App — Cytoscape Web
 
-As a Cytoscape Web plugin, Network Analyzer performs analysis of biological networks
+As a Cytoscape Web plugin, NetworkAnalyzer performs analysis of biological networks
 and calculates network topology parameters including the diameter of a network, the average number of neighbors,
 and the number of connected pairs of nodes. It also computes the distributions of more complex network parameters
 such as node degrees, average clustering coefficients, topological coefficients, and shortest path lengths.
@@ -48,7 +48,7 @@ Start the host (`npm run dev` in a
 [cytoscape-web](https://github.com/cytoscape/cytoscape-web) checkout, on :5500),
 open that link (or paste `http://localhost:5556/cyweb-app.json` into
 **Apps → Manage Apps… → Install from URL**), confirm the install, and enable
-Network Analyzer. The manifest at `/cyweb-app.json` is generated from
+NetworkAnalyzer. The manifest at `/cyweb-app.json` is generated from
 `package.json` on every request, so it cannot go stale.
 
 Changes to the app rebuild immediately, but Vite HMR does not cross the

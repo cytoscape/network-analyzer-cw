@@ -29,7 +29,7 @@ const AnalyzerModal = ({ requestClose }: ModalHostProps): JSX.Element => {
           borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Typography variant="h6">Network Analyzer</Typography>
+        <Typography variant="h6">Analyzer</Typography>
       </DialogTitle>
       <DialogContent sx={{ pt: (theme) => `${theme.spacing(1)} !important` }}>
         <AnalyzeNetworkForm

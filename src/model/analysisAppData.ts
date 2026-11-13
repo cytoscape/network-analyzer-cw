@@ -4,7 +4,7 @@
  * WHAT THIS FIXES
  *   Results used to live only in `analysisResultStore`, module state that dies
  *   with the page. A reload — or the same workspace opened in a second tab of
- *   the same browser — lost every result while its Network Analyzer columns
+ *   the same browser — lost every result while its NetworkAnalyzer columns
  *   stayed on the network. The host persists per-app storage in IndexedDB and
  *   hydrates it at boot, before apps mount, so a result stored through it is
  *   there again in both cases.
@@ -59,7 +59,7 @@ const hydrated = new Set<string>()
 const lastWritten = new Map<string, string>()
 
 const warn = (what: string, error: { code: string; message: string }): void => {
-  console.warn(`Network Analyzer app data: ${what} — ${error.code} ${error.message}`)
+  console.warn(`NetworkAnalyzer app data: ${what} — ${error.code} ${error.message}`)
 }
 
 /**
@@ -81,7 +81,7 @@ export function setAppDataApi(api: AppDataApi | null): void {
   if (appData === null) {
     if (api === undefined) {
       console.warn(
-        'Network Analyzer app data: this host has no appData domain; results will not persist',
+        'NetworkAnalyzer app data: this host has no appData domain; results will not persist',
       )
     }
     return
@@ -115,7 +115,7 @@ export function hydrateAnalysisResult(networkId: string): void {
   const result = fromStoredResult(stored.data.value)
   if (result === null) {
     console.warn(
-      `Network Analyzer app data: the stored result for network ${networkId} was unreadable and has been dropped`,
+      `NetworkAnalyzer app data: the stored result for network ${networkId} was unreadable and has been dropped`,
     )
     return
   }
@@ -190,6 +190,6 @@ const flushWrites = (): void => {
 // into the network's `cyAppData` CX2 aspect: it is then saved to NDEx, present
 // in every CX2 download, and marks the network modified. A key lives in
 // exactly one tier, so switching the flag moves the entry rather than
-// duplicating it. Network Analyzer keeps results local — the per-node and
+// duplicating it. NetworkAnalyzer keeps results local — the per-node and
 // per-edge statistics already travel with the network as table columns, and
 // the summary is recomputable from them in seconds.

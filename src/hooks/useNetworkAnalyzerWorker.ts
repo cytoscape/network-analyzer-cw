@@ -21,7 +21,7 @@ export class AnalysisCancelledError extends Error {
 const DEV_WORKER_PATH = '../model/networkAnalyzer.worker.ts'
 
 /**
- * Constructs the Network Analyzer worker — without hardcoding any origin, so
+ * Constructs the NetworkAnalyzer worker — without hardcoding any origin, so
  * the same code works wherever the app is served from.
  *
  * PRODUCTION: `?worker&inline` embeds the bundled worker (its import graph is
@@ -59,7 +59,7 @@ function createWorker(): Worker {
 }
 
 /**
- * Manages a single Network Analyzer web worker's lifecycle. A terminated
+ * Manages a single NetworkAnalyzer web worker's lifecycle. A terminated
  * worker can't be reused, so `runInWorker` creates a fresh one each call.
  *
  * The worker is bundled by Vite's built-in `?worker&inline` handling — no

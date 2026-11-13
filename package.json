@@ -1,6 +1,6 @@
 {
   "name": "@cytoscape-web/network-analyzer",
-  "description": "Network Analyzer calculates topological properties of a network (degree distribution, clustering coefficients, centrality, etc.)",
+  "description": "NetworkAnalyzer calculates topological properties of a network (degree distribution, clustering coefficients, centrality, etc.)",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -24,7 +24,7 @@
   ],
   "cyweb": {
     "id": "networkAnalyzer",
-    "displayName": "Network Analyzer",
+    "displayName": "NetworkAnalyzer",
     "port": 5556
   },
   "scripts": {

@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Network Analyzer "Summary Statistics" port.
+ * Type definitions for the NetworkAnalyzer "Summary Statistics" port.
  *
  * This is a TypeScript port (scalar summary statistics only) of the
  * Cytoscape Desktop NetworkAnalyzer app.
